@@ -202,6 +202,73 @@ export class AssessmentEngine {
   }
 
   /**
+   * Helper: Safely execute candidate JavaScript code against test cases
+   */
+  static executeJavaScriptCode(code: string, testCasesJson?: string | null) {
+    if (!testCasesJson) return { passCount: 0, totalCases: 0, percentage: 100, testResults: [] };
+    
+    let testCases: Array<{ input: string; expectedOutput: string; description?: string }> = [];
+    try {
+      testCases = JSON.parse(testCasesJson);
+    } catch {
+      return { passCount: 0, totalCases: 0, percentage: 0, testResults: [] };
+    }
+
+    let passCount = 0;
+    const testResults = testCases.map((tc, idx) => {
+      let actualOutputStr = '';
+      let passed = false;
+      try {
+        const parsedInput = JSON.parse(tc.input);
+        // Wrap code execution inside isolated scope function
+        const runner = new Function('input', `
+          ${code}
+          if (typeof solution === 'function') {
+            return solution(input);
+          }
+          throw new Error("Function 'solution' is not defined.");
+        `);
+        const result = runner(parsedInput);
+        actualOutputStr = typeof result === 'object' ? JSON.stringify(result) : String(result);
+        
+        // Compare output (trimmed string comparison or JSON equal)
+        const expectedTrimmed = tc.expectedOutput.trim();
+        actualOutputStr = actualOutputStr.trim();
+        passed = actualOutputStr === expectedTrimmed || actualOutputStr === tc.expectedOutput;
+      } catch (err: any) {
+        actualOutputStr = `Runtime Error: ${err.message || String(err)}`;
+        passed = false;
+      }
+
+      if (passed) passCount++;
+      return {
+        testCaseIndex: idx + 1,
+        description: tc.description || `Test Case #${idx + 1}`,
+        passed,
+        actual: actualOutputStr,
+        expected: tc.expectedOutput,
+      };
+    });
+
+    const percentage = testCases.length > 0 ? Math.round((passCount / testCases.length) * 100) : 100;
+    return { passCount, totalCases: testCases.length, percentage, testResults };
+  }
+
+  /**
+   * Run Candidate Code preview against test cases
+   */
+  static async runCodeTest(questionId?: string, code?: string, customTestCasesJson?: string) {
+    let testCasesJson = customTestCasesJson;
+    if (questionId) {
+      const question = await prisma.question.findUnique({ where: { id: questionId } });
+      if (question && question.testCasesJson) {
+        testCasesJson = question.testCasesJson;
+      }
+    }
+    return this.executeJavaScriptCode(code || '', testCasesJson);
+  }
+
+  /**
    * Fetch current question details for candidate (Timer = 60s per question)
    */
   static async getQuestionAtIndex(attemptId: string, index?: number) {
@@ -214,6 +281,7 @@ export class AssessmentEngine {
           }
         },
         answers: true,
+        proctoringLogs: true,
       }
     });
 
@@ -251,27 +319,49 @@ export class AssessmentEngine {
     // Check if already answered
     const existingAnswer = attempt.answers.find(a => a.questionId === questionId);
 
+    // Format public test cases preview if question type is CODING
+    let sampleTestCases: Array<{ description: string; input: string }> = [];
+    if (question.type === 'CODING' && question.testCasesJson) {
+      try {
+        const fullCases = JSON.parse(question.testCasesJson);
+        sampleTestCases = fullCases.map((tc: any, i: number) => ({
+          description: tc.description || `Test Case #${i + 1}`,
+          input: tc.input,
+        }));
+      } catch {}
+    }
+
     return {
       isCompleted: false,
       currentIndex: targetIndex,
       totalQuestions: questionIds.length,
-      timePerQuestionSeconds: 60, // Server-enforced 60s limit per question!
+      timePerQuestionSeconds: question.type === 'CODING' ? 180 : 60, // 3 mins for coding questions!
       question: {
         id: question.id,
         prompt: question.prompt,
         type: question.type,
         difficulty: question.difficulty,
         sectionTitle: question.section.title,
+        codeTemplate: question.codeTemplate,
+        sampleTestCases,
         options: question.options.sort(() => Math.random() - 0.5),
       },
       previousAnswer: existingAnswer ? JSON.parse(existingAnswer.selectedOptionIdsJson) : [],
+      previousCodeAnswer: existingAnswer?.codeAnswer || question.codeTemplate || '',
+      proctoringViolationsCount: attempt.proctoringLogs.length,
     };
   }
 
   /**
    * Submit Answer for current question and advance index
    */
-  static async submitAnswer(attemptId: string, questionId: string, selectedOptionIds: string[], timeSpentSeconds: number) {
+  static async submitAnswer(
+    attemptId: string,
+    questionId: string,
+    selectedOptionIds: string[],
+    timeSpentSeconds: number,
+    codeAnswer?: string
+  ) {
     const attempt = await prisma.assessmentAttempt.findUnique({
       where: { id: attemptId }
     });
@@ -293,6 +383,7 @@ export class AssessmentEngine {
         where: { id: existing.id },
         data: {
           selectedOptionIdsJson: JSON.stringify(selectedOptionIds),
+          codeAnswer: codeAnswer || existing.codeAnswer,
           timeSpentSeconds,
           answeredAt: new Date(),
         }
@@ -303,6 +394,7 @@ export class AssessmentEngine {
           attemptId,
           questionId,
           selectedOptionIdsJson: JSON.stringify(selectedOptionIds),
+          codeAnswer: codeAnswer || null,
           timeSpentSeconds,
           answeredAt: new Date(),
         }
@@ -328,7 +420,7 @@ export class AssessmentEngine {
   }
 
   /**
-   * Automatic Backend Evaluation Engine
+   * Automatic Backend Evaluation Engine with Proctoring Integrity Scoring
    */
   static async evaluateAssessment(attemptId: string) {
     const attempt = await prisma.assessmentAttempt.findUnique({
@@ -345,6 +437,7 @@ export class AssessmentEngine {
           }
         },
         answers: true,
+        proctoringLogs: true,
       }
     });
 
@@ -359,8 +452,11 @@ export class AssessmentEngine {
       }
     });
 
-    let totalScore = 0;
-    const maxScore = questions.length;
+    let mcqScore = 0;
+    let mcqMaxScore = 0;
+    let codingScore = 0;
+    let codingMaxScore = 0;
+
     const sectionScores: Record<string, { score: number; max: number }> = {};
 
     for (const q of questions) {
@@ -368,31 +464,70 @@ export class AssessmentEngine {
       if (!sectionScores[sectionName]) {
         sectionScores[sectionName] = { score: 0, max: 0 };
       }
-      sectionScores[sectionName].max += 1;
 
       const candAnswer = attempt.answers.find(a => a.questionId === q.id);
-      if (candAnswer) {
-        const selectedIds: string[] = JSON.parse(candAnswer.selectedOptionIdsJson);
-        const correctIds = q.options.filter(o => o.isCorrect).map(o => o.id);
 
-        let isCorrect = false;
-        if (q.type === 'MCQ_SINGLE') {
-          isCorrect = selectedIds.length === 1 && selectedIds[0] === correctIds[0];
-        } else {
-          // MCQ_MULTI: must select exact set of correct options
-          isCorrect = selectedIds.length === correctIds.length && selectedIds.every(id => correctIds.includes(id));
+      if (q.type === 'CODING') {
+        const itemMaxScore = 10;
+        codingMaxScore += itemMaxScore;
+        sectionScores[sectionName].max += itemMaxScore;
+
+        if (candAnswer && candAnswer.codeAnswer) {
+          const evalRes = this.executeJavaScriptCode(candAnswer.codeAnswer, q.testCasesJson);
+          const earned = Math.round((evalRes.percentage / 100) * itemMaxScore);
+          codingScore += earned;
+          sectionScores[sectionName].score += earned;
         }
+      } else {
+        // MCQ Questions
+        mcqMaxScore += 1;
+        sectionScores[sectionName].max += 1;
 
-        if (isCorrect) {
-          totalScore += 1;
-          sectionScores[sectionName].score += 1;
+        if (candAnswer) {
+          const selectedIds: string[] = JSON.parse(candAnswer.selectedOptionIdsJson || '[]');
+          const correctIds = q.options.filter(o => o.isCorrect).map(o => o.id);
+
+          let isCorrect = false;
+          if (q.type === 'MCQ_SINGLE') {
+            isCorrect = selectedIds.length === 1 && selectedIds[0] === correctIds[0];
+          } else {
+            isCorrect = selectedIds.length === correctIds.length && selectedIds.every(id => correctIds.includes(id));
+          }
+
+          if (isCorrect) {
+            mcqScore += 1;
+            sectionScores[sectionName].score += 1;
+          }
         }
       }
     }
 
+    const totalScore = mcqScore + codingScore;
+    const maxScore = mcqMaxScore + codingMaxScore;
     const percentage = Math.round((totalScore / (maxScore || 1)) * 100 * 10) / 10;
     const passThreshold = attempt.application.job.passThreshold;
     const isPassed = percentage >= passThreshold;
+
+    // Calculate Integrity Score based on Proctoring Logs
+    let integrityScore = 100;
+    let tabSwitches = 0;
+    let fullscreenExits = 0;
+
+    for (const log of attempt.proctoringLogs) {
+      if (log.eventType === 'FOCUS_LOST') {
+        tabSwitches++;
+        integrityScore -= 5;
+      } else if (log.eventType === 'FULLSCREEN_EXIT') {
+        fullscreenExits++;
+        integrityScore -= 10;
+      } else if (log.eventType === 'COPY_PASTE') {
+        integrityScore -= 10;
+      } else if (log.eventType === 'SUSPICIOUS_BEHAVIOR') {
+        integrityScore -= 15;
+      }
+    }
+
+    integrityScore = Math.max(0, Math.min(100, integrityScore));
 
     // Save Result
     const result = await prisma.assessmentResult.upsert({
@@ -402,6 +537,9 @@ export class AssessmentEngine {
         totalScore,
         maxScore,
         percentage,
+        integrityScore,
+        codingScore,
+        codingMaxScore,
         sectionScoresJson: JSON.stringify(sectionScores),
         isPassed,
       },
@@ -409,6 +547,9 @@ export class AssessmentEngine {
         totalScore,
         maxScore,
         percentage,
+        integrityScore,
+        codingScore,
+        codingMaxScore,
         sectionScoresJson: JSON.stringify(sectionScores),
         isPassed,
         evaluatedAt: new Date(),
@@ -419,7 +560,13 @@ export class AssessmentEngine {
     const newStatus = isPassed ? 'PASSED' : 'FAILED';
     await prisma.assessmentAttempt.update({
       where: { id: attemptId },
-      data: { isCompleted: true, submittedAt: new Date() }
+      data: {
+        isCompleted: true,
+        submittedAt: new Date(),
+        integrityScore,
+        tabSwitchCount: tabSwitches,
+        fullscreenViolationCount: fullscreenExits,
+      }
     });
 
     await prisma.jobApplication.update({
@@ -432,7 +579,7 @@ export class AssessmentEngine {
       data: {
         action: 'ASSESSMENT_EVALUATED',
         entity: 'JobApplication',
-        details: `Candidate ${attempt.application.candidate.name} scored ${percentage}% (${newStatus}) on job ${attempt.application.job.title}.`,
+        details: `Candidate ${attempt.application.candidate.name} scored ${percentage}% (${newStatus}, Integrity: ${integrityScore}%) on job ${attempt.application.job.title}.`,
       }
     });
 
@@ -452,6 +599,9 @@ export class AssessmentEngine {
         totalScore,
         maxScore,
         percentage,
+        integrityScore,
+        codingScore,
+        codingMaxScore,
         isPassed,
         sectionScores,
       }

@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { 
   Users, CheckCircle2, AlertCircle, Clock, Search, Filter, 
-  Plus, UserPlus, Eye, FileText, Copy, Check, ExternalLink, Briefcase
+  Plus, UserPlus, Eye, FileText, Copy, Check, ExternalLink, Briefcase, FileSpreadsheet, Download
 } from 'lucide-react';
 import { CreateJobModal } from './CreateJobModal';
 import { InviteCandidateModal } from './InviteCandidateModal';
+import { BulkInviteModal } from './BulkInviteModal';
 import { CandidateDetailDrawer } from './CandidateDetailDrawer';
 import { ResumeViewerModal } from '../common/ResumeViewerModal';
 import { EmailPreviewModal } from '../common/EmailPreviewModal';
@@ -23,6 +24,7 @@ export const RecruiterDashboard: React.FC = () => {
   // Modals state
   const [isJobModalOpen, setIsJobModalOpen] = useState(false);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [inspectApplicationId, setInspectApplicationId] = useState<string | null>(null);
 
   // Resume Modal
@@ -91,24 +93,41 @@ export const RecruiterDashboard: React.FC = () => {
     <div className="space-y-6">
       
       {/* Top Banner & Main Actions */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/60 p-6 rounded-2xl border border-slate-800 backdrop-blur">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-900/60 p-6 rounded-2xl border border-slate-800 backdrop-blur">
         <div>
           <h1 className="text-2xl font-extrabold text-white tracking-tight">Recruiter Technical Hiring Dashboard</h1>
-          <p className="text-xs text-slate-400 mt-1">Automated Candidate Screening, Assessment Scoring & HR Workflow</p>
+          <p className="text-xs text-slate-400 mt-1">Automated Candidate Screening, Proctoring Audits & HR Pipeline Management</p>
         </div>
 
-        <div className="flex items-center space-x-3">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <a
+            href="/api/candidates/export-csv"
+            download
+            className="flex items-center space-x-1.5 bg-slate-950 hover:bg-slate-800 text-slate-300 text-xs font-semibold px-3.5 py-2.5 rounded-xl border border-slate-800 transition"
+          >
+            <Download className="h-4 w-4 text-emerald-400" />
+            <span>Export CSV</span>
+          </a>
+
+          <button
+            onClick={() => setIsBulkModalOpen(true)}
+            className="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold px-3.5 py-2.5 rounded-xl border border-slate-700 transition"
+          >
+            <FileSpreadsheet className="h-4 w-4 text-cyan-400" />
+            <span>Bulk Invite</span>
+          </button>
+
           <button
             onClick={() => setIsJobModalOpen(true)}
-            className="flex items-center space-x-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold px-4 py-2.5 rounded-xl border border-slate-700 transition"
+            className="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold px-3.5 py-2.5 rounded-xl border border-slate-700 transition"
           >
             <Plus className="h-4 w-4 text-blue-400" />
-            <span>Create Job Opening</span>
+            <span>Create Job</span>
           </button>
 
           <button
             onClick={() => setIsInviteModalOpen(true)}
-            className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition shadow-lg shadow-blue-600/20"
+            className="flex items-center space-x-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition shadow-lg shadow-blue-600/20"
           >
             <UserPlus className="h-4 w-4" />
             <span>Invite Candidate</span>
@@ -212,7 +231,7 @@ export const RecruiterDashboard: React.FC = () => {
           {/* Status Filter Buttons */}
           <div className="flex items-center space-x-1 overflow-x-auto pb-1 md:pb-0">
             <Filter className="h-4 w-4 text-slate-500 mr-2 shrink-0 hidden sm:block" />
-            {['ALL', 'PASSED', 'FAILED', 'INVITED', 'HR_INTERVIEW', 'REJECTED'].map((st) => (
+            {['ALL', 'PASSED', 'FAILED', 'INVITED', 'SHORTLISTED', 'HR_INTERVIEW', 'REJECTED'].map((st) => (
               <button
                 key={st}
                 onClick={() => setStatusFilter(st)}
@@ -362,6 +381,14 @@ export const RecruiterDashboard: React.FC = () => {
           });
         }}
       />
+
+      {isBulkModalOpen && (
+        <BulkInviteModal
+          jobs={jobs}
+          onClose={() => setIsBulkModalOpen(false)}
+          onSuccess={fetchData}
+        />
+      )}
 
       <CandidateDetailDrawer
         applicationId={inspectApplicationId}

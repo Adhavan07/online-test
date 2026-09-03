@@ -469,6 +469,31 @@ async function main() {
     },
   });
 
+  const codingSection = await prisma.assessmentSection.create({
+    data: {
+      templateId: devopsTemplate.id,
+      title: 'Practical Scripting & Logic',
+      description: 'Hands-on algorithm implementation and array processing.',
+      questionCount: 1,
+    },
+  });
+
+  await prisma.question.create({
+    data: {
+      sectionId: codingSection.id,
+      prompt: 'Write a JavaScript function named `solution(arr)` that accepts an array of numbers and returns the sum of all POSITIVE numbers in the array. If no positive numbers exist, return 0.',
+      type: 'CODING',
+      difficulty: 'MEDIUM',
+      explanation: 'Use Array.prototype.filter() or reduce() to sum elements > 0.',
+      codeTemplate: 'function solution(arr) {\n  // Write your code here\n  return arr.filter(x => x > 0).reduce((a, b) => a + b, 0);\n}',
+      testCasesJson: JSON.stringify([
+        { input: '[1, -4, 7, 12]', expectedOutput: '20', description: 'Filters out negative numbers' },
+        { input: '[-1, -2, -3]', expectedOutput: '0', description: 'Returns 0 for all negative numbers' },
+        { input: '[5, 10, 15]', expectedOutput: '30', description: 'Sums all positive integers' },
+      ]),
+    },
+  });
+
   // Mock completed attempt & result for Arun
   const attemptArun = await prisma.assessmentAttempt.create({
     data: {
@@ -479,6 +504,18 @@ async function main() {
       currentQuestionIndex: 15,
       questionOrderJson: JSON.stringify([]),
       isCompleted: true,
+      integrityScore: 95,
+      tabSwitchCount: 1,
+      fullscreenViolationCount: 0,
+    },
+  });
+
+  await prisma.proctoringLog.create({
+    data: {
+      attemptId: attemptArun.id,
+      eventType: 'FOCUS_LOST',
+      details: 'Browser window tab focus lost for 4 seconds.',
+      timestamp: new Date(Date.now() - 2400000),
     },
   });
 
@@ -488,10 +525,14 @@ async function main() {
       totalScore: 13,
       maxScore: 15,
       percentage: 86.7,
+      integrityScore: 95,
+      codingScore: 10,
+      codingMaxScore: 10,
       sectionScoresJson: JSON.stringify({
         'Git Version Control': { score: 5, max: 5 },
         'Linux Systems Administration': { score: 4, max: 5 },
         'Docker & CI/CD Pipelines': { score: 4, max: 5 },
+        'Practical Scripting & Logic': { score: 10, max: 10 },
       }),
       isPassed: true,
     },
@@ -550,7 +591,19 @@ async function main() {
       currentQuestionIndex: 15,
       questionOrderJson: JSON.stringify([]),
       isCompleted: true,
+      integrityScore: 60,
+      tabSwitchCount: 4,
+      fullscreenViolationCount: 2,
     },
+  });
+
+  await prisma.proctoringLog.createMany({
+    data: [
+      { attemptId: attemptRahul.id, eventType: 'FOCUS_LOST', details: 'Browser tab switched away (duration 12s)', timestamp: new Date(Date.now() - 6800000) },
+      { attemptId: attemptRahul.id, eventType: 'FULLSCREEN_EXIT', details: 'Candidate exited fullscreen mode', timestamp: new Date(Date.now() - 6500000) },
+      { attemptId: attemptRahul.id, eventType: 'COPY_PASTE', details: 'Attempted right-click / paste inside question body', timestamp: new Date(Date.now() - 6100000) },
+      { attemptId: attemptRahul.id, eventType: 'FOCUS_LOST', details: 'Window focus lost (duration 45s)', timestamp: new Date(Date.now() - 5800000) },
+    ],
   });
 
   await prisma.assessmentResult.create({

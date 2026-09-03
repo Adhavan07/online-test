@@ -178,13 +178,13 @@ export const AdminPortal: React.FC = () => {
           <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-4">
             <h3 className="text-sm font-bold text-white flex items-center space-x-2">
               <Plus className="h-4 w-4 text-blue-400" />
-              <span>Add Custom MCQ Question to Template Bank</span>
+              <span>Add Question (MCQ or Practical Coding Challenge)</span>
             </h3>
 
             <form onSubmit={handleAddQuestion} className="space-y-4 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Target Template Section</label>
+                  <label className="block text-slate-300 font-semibold mb-1">Target Section</label>
                   <select
                     required
                     value={selectedSectionId}
@@ -197,8 +197,22 @@ export const AdminPortal: React.FC = () => {
                     )))}
                   </select>
                 </div>
+
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Difficulty</label>
+                  <label className="block text-slate-300 font-semibold mb-1">Question Type</label>
+                  <select
+                    value={newQuestion.type}
+                    onChange={(e) => setNewQuestion({ ...newQuestion, type: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="MCQ_SINGLE">MCQ Single Choice</option>
+                    <option value="MCQ_MULTI">MCQ Multiple Choice</option>
+                    <option value="CODING">Practical Coding Challenge</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Difficulty Level</label>
                   <select
                     value={newQuestion.difficulty}
                     onChange={(e) => setNewQuestion({ ...newQuestion, difficulty: e.target.value })}
@@ -216,40 +230,56 @@ export const AdminPortal: React.FC = () => {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Which command is used to..."
+                  placeholder={newQuestion.type === 'CODING' ? 'e.g. Write a function solution(a, b) that returns sum...' : 'e.g. Which command is used to...'}
                   value={newQuestion.prompt}
                   onChange={(e) => setNewQuestion({ ...newQuestion, prompt: e.target.value })}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-blue-500"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                {['option1', 'option2', 'option3', 'option4'].map((optKey, idx) => (
-                  <div key={optKey} className="flex items-center space-x-2">
-                    <input
-                      type="radio"
-                      name="correctIdx"
-                      checked={newQuestion.correctIndex === idx}
-                      onChange={() => setNewQuestion({ ...newQuestion, correctIndex: idx })}
-                    />
-                    <input
-                      type="text"
-                      required
-                      placeholder={`Option ${idx + 1} ${idx === newQuestion.correctIndex ? '(Correct Answer)' : ''}`}
-                      value={(newQuestion as any)[optKey]}
-                      onChange={(e) => setNewQuestion({ ...newQuestion, [optKey]: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-blue-500"
+              {/* MCQ Options vs CODING Code Template */}
+              {newQuestion.type === 'CODING' ? (
+                <div className="space-y-3 bg-slate-950 p-4 rounded-xl border border-slate-800">
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">Starter JavaScript Code Template</label>
+                    <textarea
+                      rows={4}
+                      placeholder="function solution(a, b) {&#10;  // Write your code here&#10;}"
+                      value={newQuestion.explanation} // Using explanation field for template state
+                      onChange={(e) => setNewQuestion({ ...newQuestion, explanation: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 font-mono text-emerald-300 text-xs focus:outline-none focus:border-blue-500"
                     />
                   </div>
-                ))}
-              </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  {['option1', 'option2', 'option3', 'option4'].map((optKey, idx) => (
+                    <div key={optKey} className="flex items-center space-x-2">
+                      <input
+                        type="radio"
+                        name="correctIdx"
+                        checked={newQuestion.correctIndex === idx}
+                        onChange={() => setNewQuestion({ ...newQuestion, correctIndex: idx })}
+                      />
+                      <input
+                        type="text"
+                        required
+                        placeholder={`Option ${idx + 1} ${idx === newQuestion.correctIndex ? '(Correct Answer)' : ''}`}
+                        value={(newQuestion as any)[optKey]}
+                        onChange={(e) => setNewQuestion({ ...newQuestion, [optKey]: e.target.value })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <div className="flex justify-end">
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition shadow-lg shadow-blue-600/20"
                 >
-                  Save Question
+                  Save Question to Bank
                 </button>
               </div>
             </form>

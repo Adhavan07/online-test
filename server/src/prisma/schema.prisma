@@ -72,9 +72,11 @@ model Question {
   sectionId   String
   section     AssessmentSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
   prompt      String
-  type        String           // MCQ_SINGLE, MCQ_MULTI
+  type        String           // MCQ_SINGLE, MCQ_MULTI, CODING
   difficulty  String           // EASY, MEDIUM, HARD
   explanation String?
+  codeTemplate String?
+  testCasesJson String?        // JSON string of test cases [{input: "", expectedOutput: "", description: ""}]
   options     QuestionOption[]
 }
 
@@ -113,18 +115,22 @@ model JobApplication {
 }
 
 model AssessmentAttempt {
-  id                   String            @id @default(uuid())
-  applicationId        String
-  application          JobApplication    @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  templateId           String
-  template             AssessmentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  startedAt            DateTime          @default(now())
-  submittedAt          DateTime?
-  currentQuestionIndex Int               @default(0)
-  questionOrderJson    String            // JSON string array of Question IDs
-  isCompleted          Boolean           @default(false)
-  answers              CandidateAnswer[]
-  result               AssessmentResult?
+  id                       String            @id @default(uuid())
+  applicationId            String
+  application              JobApplication    @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  templateId               String
+  template                 AssessmentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  startedAt                DateTime          @default(now())
+  submittedAt              DateTime?
+  currentQuestionIndex     Int               @default(0)
+  questionOrderJson        String            // JSON string array of Question IDs
+  isCompleted              Boolean           @default(false)
+  integrityScore           Int               @default(100)
+  tabSwitchCount           Int               @default(0)
+  fullscreenViolationCount Int               @default(0)
+  answers                  CandidateAnswer[]
+  proctoringLogs           ProctoringLog[]
+  result                   AssessmentResult?
 }
 
 model CandidateAnswer {
@@ -133,6 +139,7 @@ model CandidateAnswer {
   attempt              AssessmentAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
   questionId           String
   selectedOptionIdsJson String            // JSON string array of selected option IDs
+  codeAnswer           String?           // Submitted code for CODING type questions
   answeredAt           DateTime          @default(now())
   timeSpentSeconds     Int               @default(0)
 }
@@ -144,9 +151,21 @@ model AssessmentResult {
   totalScore        Int
   maxScore          Int
   percentage        Float
+  integrityScore    Int               @default(100)
+  codingScore       Int               @default(0)
+  codingMaxScore    Int               @default(0)
   sectionScoresJson String            // JSON breakdown: { "Git": { score: 8, max: 10 }, ... }
   isPassed          Boolean
   evaluatedAt       DateTime          @default(now())
+}
+
+model ProctoringLog {
+  id        String            @id @default(uuid())
+  attemptId String
+  attempt   AssessmentAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  eventType String            // FOCUS_LOST, FULLSCREEN_EXIT, COPY_PASTE, SUSPICIOUS_BEHAVIOR
+  details   String?
+  timestamp DateTime          @default(now())
 }
 
 model EmailLog {

@@ -37,6 +37,91 @@ adminRouter.get('/stats', async (req, res) => {
 });
 
 /**
+ * Create Question Endpoint (MCQ & CODING types supported)
+ */
+adminRouter.post('/questions', async (req, res) => {
+  const { sectionId, type, prompt, difficulty, codeTemplate, testCasesJson, explanation, options } = req.body;
+
+  try {
+    if (!sectionId || !prompt || !type) {
+      return res.status(400).json({ success: false, error: 'sectionId, prompt, and type are required' });
+    }
+
+    const question = await prisma.question.create({
+      data: {
+        sectionId,
+        type: type || 'MCQ_SINGLE',
+        prompt,
+        difficulty: difficulty || 'MEDIUM',
+        explanation: explanation || null,
+        codeTemplate: codeTemplate || null,
+        testCasesJson: testCasesJson || null,
+        options: options && Array.isArray(options) ? {
+          create: options.map((opt: any) => ({
+            text: opt.text,
+            isCorrect: opt.isCorrect || false,
+          }))
+        } : undefined,
+      },
+      include: { options: true }
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        action: 'QUESTION_CREATED',
+        entity: 'Question',
+        details: `Created new ${type} question: "${prompt.slice(0, 40)}..."`,
+      }
+    });
+
+    res.json({ success: true, question });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * Create Assessment Template Endpoint
+ */
+adminRouter.post('/templates', async (req, res) => {
+  const { title, roleCategory, durationMinutes, passPercentage, sections } = req.body;
+
+  try {
+    if (!title) {
+      return res.status(400).json({ success: false, error: 'title is required' });
+    }
+
+    const template = await prisma.assessmentTemplate.create({
+      data: {
+        title,
+        roleCategory: roleCategory || 'FULLSTACK_ENGINEER',
+        durationMinutes: durationMinutes || 30,
+        passPercentage: passPercentage || 70,
+        sections: sections && Array.isArray(sections) ? {
+          create: sections.map((sec: any) => ({
+            title: sec.title,
+            questionCount: sec.questionCount || 5,
+          }))
+        } : undefined,
+      },
+      include: { sections: true }
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        action: 'TEMPLATE_CREATED',
+        entity: 'AssessmentTemplate',
+        details: `Created new Assessment Template "${title}"`,
+      }
+    });
+
+    res.json({ success: true, template });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
  * Get Audit Logs
  */
 adminRouter.get('/audit-logs', async (req, res) => {
