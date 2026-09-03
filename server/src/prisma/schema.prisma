@@ -1,0 +1,169 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  role      String   // ADMIN, RECRUITER, CANDIDATE
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+}
+
+model Company {
+  id        String   @id @default(uuid())
+  name      String
+  logoUrl   String?
+  users     User[]
+  jobs      Job[]
+  createdAt DateTime @default(now())
+}
+
+model Job {
+  id                   String            @id @default(uuid())
+  title                String
+  experienceRange      String            // e.g. "0-2 years"
+  location             String            // e.g. "Chennai / Remote"
+  skillsRequired       String            // JSON string array e.g. ["Git", "Linux", "Docker"]
+  description          String
+  passThreshold        Int               @default(70) // Percentage required to pass
+  assessmentTemplateId String?
+  assessmentTemplate   AssessmentTemplate? @relation(fields: [assessmentTemplateId], references: [id], onDelete: SetNull)
+  companyId            String
+  company              Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  applications         JobApplication[]
+  createdAt            DateTime          @default(now())
+}
+
+model AssessmentTemplate {
+  id              String              @id @default(uuid())
+  title           String
+  roleCategory    String              // DEVOPS, BACKEND, FRONTEND, DATA_ANALYST, CLOUD
+  durationMinutes Int                 @default(30)
+  totalQuestions  Int                 @default(15)
+  passPercentage  Int                 @default(70)
+  shuffleQuestions Boolean            @default(true)
+  shuffleOptions   Boolean            @default(true)
+  sections        AssessmentSection[]
+  jobs            Job[]
+  attempts        AssessmentAttempt[]
+  createdAt       DateTime            @default(now())
+}
+
+model AssessmentSection {
+  id            String              @id @default(uuid())
+  templateId    String
+  template      AssessmentTemplate  @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  title         String              // e.g. "Git", "Linux", "Docker"
+  description   String?
+  questionCount Int                 @default(5)
+  questions     Question[]
+}
+
+model Question {
+  id          String           @id @default(uuid())
+  sectionId   String
+  section     AssessmentSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  prompt      String
+  type        String           // MCQ_SINGLE, MCQ_MULTI
+  difficulty  String           // EASY, MEDIUM, HARD
+  explanation String?
+  options     QuestionOption[]
+}
+
+model QuestionOption {
+  id         String   @id @default(uuid())
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  text       String
+  isCorrect  Boolean  @default(false)
+}
+
+model Candidate {
+  id             String           @id @default(uuid())
+  name           String
+  email          String           @unique
+  phone          String?
+  resumeUrl      String?
+  resumeFileName String?
+  applications   JobApplication[]
+  createdAt      DateTime         @default(now())
+}
+
+model JobApplication {
+  id             String             @id @default(uuid())
+  candidateId    String
+  candidate      Candidate          @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  jobId          String
+  job            Job                @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  status         String             @default("APPLIED") // APPLIED, INVITED, STARTED, IN_PROGRESS, SUBMITTED, EVALUATING, PASSED, FAILED, SHORTLISTED, HR_INTERVIEW, REJECTED
+  token          String             @unique
+  tokenExpiresAt DateTime
+  otpCode        String?
+  isOtpVerified  Boolean            @default(false)
+  attempts       AssessmentAttempt[]
+  createdAt      DateTime           @default(now())
+}
+
+model AssessmentAttempt {
+  id                   String            @id @default(uuid())
+  applicationId        String
+  application          JobApplication    @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  templateId           String
+  template             AssessmentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  startedAt            DateTime          @default(now())
+  submittedAt          DateTime?
+  currentQuestionIndex Int               @default(0)
+  questionOrderJson    String            // JSON string array of Question IDs
+  isCompleted          Boolean           @default(false)
+  answers              CandidateAnswer[]
+  result               AssessmentResult?
+}
+
+model CandidateAnswer {
+  id                   String            @id @default(uuid())
+  attemptId            String
+  attempt              AssessmentAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionId           String
+  selectedOptionIdsJson String            // JSON string array of selected option IDs
+  answeredAt           DateTime          @default(now())
+  timeSpentSeconds     Int               @default(0)
+}
+
+model AssessmentResult {
+  id                String            @id @default(uuid())
+  attemptId         String            @unique
+  attempt           AssessmentAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  totalScore        Int
+  maxScore          Int
+  percentage        Float
+  sectionScoresJson String            // JSON breakdown: { "Git": { score: 8, max: 10 }, ... }
+  isPassed          Boolean
+  evaluatedAt       DateTime          @default(now())
+}
+
+model EmailLog {
+  id             String   @id @default(uuid())
+  recipientEmail String
+  subject        String
+  type           String   // INVITATION, PASS_ALERT, REJECTION, REMINDER
+  content        String
+  sentAt         DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  userName  String?
+  action    String
+  entity    String
+  details   String
+  createdAt DateTime @default(now())
+}
