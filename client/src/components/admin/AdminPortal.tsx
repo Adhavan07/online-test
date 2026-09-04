@@ -1,17 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { 
-  Building2, Users, FileText, Database, ShieldCheck, Mail, Plus, CheckCircle, ChevronDown, ChevronRight, Sparkles, Network
+  Building2, Users, FileText, Database, ShieldCheck, Mail, Plus, CheckCircle, Sparkles, Network
 } from 'lucide-react';
 import { AiQuestionGeneratorModal } from './AiQuestionGeneratorModal';
 import { EnterpriseWebhooksModal } from '../recruiter/EnterpriseWebhooksModal';
 
-export const AdminPortal: React.FC = () => {
+interface AdminPortalProps {
+  initialTab?: 'METRICS' | 'QUESTION_BANK' | 'AUDIT_LOGS' | 'EMAIL_LOGS';
+}
+
+export const AdminPortal: React.FC<AdminPortalProps> = ({ initialTab = 'METRICS' }) => {
   const [stats, setStats] = useState<any>(null);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [emailLogs, setEmailLogs] = useState<any[]>([]);
   const [templates, setTemplates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'METRICS' | 'QUESTION_BANK' | 'AUDIT_LOGS' | 'EMAIL_LOGS'>('METRICS');
+  const [activeTab, setActiveTab] = useState<'METRICS' | 'QUESTION_BANK' | 'AUDIT_LOGS' | 'EMAIL_LOGS'>(initialTab);
 
   // Modals state
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
@@ -30,6 +34,10 @@ export const AdminPortal: React.FC = () => {
     option4: '',
     correctIndex: 0,
   });
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -103,93 +111,85 @@ export const AdminPortal: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 select-none">
       
-      {/* Top Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/60 p-6 rounded-2xl border border-slate-800 backdrop-blur">
+      {/* Header Bar */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-4 border-b border-zinc-200">
         <div>
-          <h1 className="text-2xl font-extrabold text-white tracking-tight">Admin System Console</h1>
-          <p className="text-xs text-slate-400 mt-1">Manage Companies, Question Banks, Global Settings & System Logs</p>
+          <div className="text-xs font-mono text-zinc-500 uppercase tracking-wider mb-0.5">
+            System &bull; Admin Console
+          </div>
+          <h1 className="text-xl font-bold text-zinc-900 tracking-tight">
+            System Administration & Question Bank
+          </h1>
+          <p className="text-xs text-zinc-600 mt-0.5">
+            Manage assessment templates, AI prompt generators, ATS integrations, and audit logs.
+          </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        {/* Action Controls Bar */}
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setIsAiModalOpen(true)}
-            className="flex items-center space-x-1.5 px-3.5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl transition shadow-md shadow-purple-600/20"
+            className="flex items-center space-x-1.5 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-medium rounded transition"
           >
-            <Sparkles className="h-4 w-4" />
+            <Sparkles className="h-3.5 w-3.5 text-amber-400" />
             <span>AI Question Generator</span>
           </button>
 
           <button
             onClick={() => setIsWebhooksModalOpen(true)}
-            className="flex items-center space-x-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition"
+            className="flex items-center space-x-1.5 px-3 py-1.5 bg-white hover:bg-zinc-50 text-zinc-700 text-xs font-medium rounded border border-zinc-200 transition"
           >
-            <Network className="h-4 w-4 text-blue-400" />
+            <Network className="h-3.5 w-3.5 text-blue-600" />
             <span>ATS Webhooks</span>
           </button>
 
           {/* Sub Navigation */}
-          <div className="flex items-center space-x-2 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
+          <div className="flex items-center space-x-1 bg-zinc-100 p-1 rounded border border-zinc-200">
             {[
-              { id: 'METRICS', label: 'Platform Metrics', icon: Database },
+              { id: 'METRICS', label: 'Metrics', icon: Database },
               { id: 'QUESTION_BANK', label: 'Question Bank', icon: FileText },
               { id: 'AUDIT_LOGS', label: 'Audit Logs', icon: ShieldCheck },
               { id: 'EMAIL_LOGS', label: 'Email Logs', icon: Mail },
-            ].map(tab => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                    activeTab === tab.id
-                      ? 'bg-blue-600 text-white'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`px-2.5 py-1 rounded text-xs font-medium transition ${
+                  activeTab === tab.id
+                    ? 'bg-white text-zinc-900 font-semibold border border-zinc-200/80 shadow-xs'
+                    : 'text-zinc-600 hover:text-zinc-900'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
         </div>
       </div>
 
       {/* METRICS TAB */}
       {activeTab === 'METRICS' && stats && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 space-y-1">
-            <div className="flex items-center justify-between text-slate-400">
-              <span className="text-xs font-semibold uppercase tracking-wider">Companies</span>
-              <Building2 className="h-4 w-4 text-blue-400" />
-            </div>
-            <div className="text-2xl font-extrabold text-white">{stats.totalCompanies}</div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 bg-white p-4 rounded border border-zinc-200 divide-y lg:divide-y-0 lg:divide-x divide-zinc-200">
+          <div className="px-3 py-1">
+            <div className="text-[11px] font-mono text-zinc-500 uppercase tracking-wider">Registered Companies</div>
+            <div className="text-2xl font-bold text-zinc-900 mt-1 font-mono">{stats.totalCompanies}</div>
           </div>
 
-          <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 space-y-1">
-            <div className="flex items-center justify-between text-slate-400">
-              <span className="text-xs font-semibold uppercase tracking-wider">Total Users</span>
-              <Users className="h-4 w-4 text-indigo-400" />
-            </div>
-            <div className="text-2xl font-extrabold text-white">{stats.totalUsers}</div>
+          <div className="px-3 py-1 pt-3 lg:pt-1">
+            <div className="text-[11px] font-mono text-zinc-500 uppercase tracking-wider">Total Platform Users</div>
+            <div className="text-2xl font-bold text-zinc-900 mt-1 font-mono">{stats.totalUsers}</div>
           </div>
 
-          <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 space-y-1">
-            <div className="flex items-center justify-between text-slate-400">
-              <span className="text-xs font-semibold uppercase tracking-wider">Assessment Templates</span>
-              <FileText className="h-4 w-4 text-purple-400" />
-            </div>
-            <div className="text-2xl font-extrabold text-white">{stats.totalTemplates}</div>
+          <div className="px-3 py-1 pt-3 lg:pt-1">
+            <div className="text-[11px] font-mono text-zinc-500 uppercase tracking-wider">Assessment Templates</div>
+            <div className="text-2xl font-bold text-zinc-900 mt-1 font-mono">{stats.totalTemplates}</div>
           </div>
 
-          <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 space-y-1">
-            <div className="flex items-center justify-between text-slate-400">
-              <span className="text-xs font-semibold uppercase tracking-wider">Platform Pass Rate</span>
-              <CheckCircle className="h-4 w-4 text-emerald-400" />
-            </div>
-            <div className="text-2xl font-extrabold text-emerald-400">{stats.passRate}%</div>
+          <div className="px-3 py-1 pt-3 lg:pt-1">
+            <div className="text-[11px] font-mono text-zinc-500 uppercase tracking-wider">Platform Pass Rate</div>
+            <div className="text-2xl font-bold text-emerald-700 mt-1 font-mono">{stats.passRate}%</div>
           </div>
         </div>
       )}
@@ -199,21 +199,20 @@ export const AdminPortal: React.FC = () => {
         <div className="space-y-6">
           
           {/* Add Question Card */}
-          <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-4">
-            <h3 className="text-sm font-bold text-white flex items-center space-x-2">
-              <Plus className="h-4 w-4 text-blue-400" />
-              <span>Add Question (MCQ or Practical Coding Challenge)</span>
+          <div className="bg-white p-5 rounded border border-zinc-200 space-y-4">
+            <h3 className="text-xs font-bold text-zinc-900 font-mono uppercase tracking-wider">
+              + Manual Question & Coding Challenge Creation
             </h3>
 
             <form onSubmit={handleAddQuestion} className="space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Target Section</label>
+                  <label className="block text-zinc-700 font-semibold mb-1">Target Section</label>
                   <select
                     required
                     value={selectedSectionId}
                     onChange={(e) => setSelectedSectionId(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                    className="w-full bg-white border border-zinc-200 rounded px-3 py-1.5 text-zinc-900 focus:border-zinc-400"
                   >
                     <option value="">Select Section...</option>
                     {templates.flatMap(t => t.sections.map((s: any) => (
@@ -223,11 +222,11 @@ export const AdminPortal: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Question Type</label>
+                  <label className="block text-zinc-700 font-semibold mb-1">Question Type</label>
                   <select
                     value={newQuestion.type}
                     onChange={(e) => setNewQuestion({ ...newQuestion, type: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                    className="w-full bg-white border border-zinc-200 rounded px-3 py-1.5 text-zinc-900 focus:border-zinc-400"
                   >
                     <option value="MCQ_SINGLE">MCQ Single Choice</option>
                     <option value="MCQ_MULTI">MCQ Multiple Choice</option>
@@ -236,11 +235,11 @@ export const AdminPortal: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Difficulty Level</label>
+                  <label className="block text-zinc-700 font-semibold mb-1">Difficulty Level</label>
                   <select
                     value={newQuestion.difficulty}
                     onChange={(e) => setNewQuestion({ ...newQuestion, difficulty: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                    className="w-full bg-white border border-zinc-200 rounded px-3 py-1.5 text-zinc-900 focus:border-zinc-400 font-mono"
                   >
                     <option value="EASY">EASY</option>
                     <option value="MEDIUM">MEDIUM</option>
@@ -250,30 +249,27 @@ export const AdminPortal: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Question Prompt</label>
+                <label className="block text-zinc-700 font-semibold mb-1">Question Prompt</label>
                 <input
                   type="text"
                   required
                   placeholder={newQuestion.type === 'CODING' ? 'e.g. Write a function solution(a, b) that returns sum...' : 'e.g. Which command is used to...'}
                   value={newQuestion.prompt}
                   onChange={(e) => setNewQuestion({ ...newQuestion, prompt: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-blue-500"
+                  className="w-full bg-white border border-zinc-200 rounded px-3 py-1.5 text-zinc-900 focus:border-zinc-400"
                 />
               </div>
 
-              {/* MCQ Options vs CODING Code Template */}
               {newQuestion.type === 'CODING' ? (
-                <div className="space-y-3 bg-slate-950 p-4 rounded-xl border border-slate-800">
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1">Starter JavaScript Code Template</label>
-                    <textarea
-                      rows={4}
-                      placeholder="function solution(a, b) {&#10;  // Write your code here&#10;}"
-                      value={newQuestion.explanation} // Using explanation field for template state
-                      onChange={(e) => setNewQuestion({ ...newQuestion, explanation: e.target.value })}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 font-mono text-emerald-300 text-xs focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
+                <div className="space-y-2 bg-zinc-50 p-3 rounded border border-zinc-200">
+                  <label className="block text-zinc-700 font-semibold">Starter Code Template</label>
+                  <textarea
+                    rows={4}
+                    placeholder="function solution(a, b) {&#10;  // Write your solution code here&#10;}"
+                    value={newQuestion.explanation}
+                    onChange={(e) => setNewQuestion({ ...newQuestion, explanation: e.target.value })}
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded p-3 font-mono text-emerald-400 text-xs focus:outline-none"
+                  />
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-3">
@@ -288,10 +284,10 @@ export const AdminPortal: React.FC = () => {
                       <input
                         type="text"
                         required
-                        placeholder={`Option ${idx + 1} ${idx === newQuestion.correctIndex ? '(Correct Answer)' : ''}`}
+                        placeholder={`Option ${idx + 1}`}
                         value={(newQuestion as any)[optKey]}
                         onChange={(e) => setNewQuestion({ ...newQuestion, [optKey]: e.target.value })}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-blue-500"
+                        className="w-full bg-white border border-zinc-200 rounded px-3 py-1.5 text-zinc-900 focus:border-zinc-400"
                       />
                     </div>
                   ))}
@@ -301,9 +297,9 @@ export const AdminPortal: React.FC = () => {
               <div className="flex justify-end">
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition shadow-lg shadow-blue-600/20"
+                  className="px-3.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white font-medium rounded transition"
                 >
-                  Save Question to Bank
+                  Save Question to Template
                 </button>
               </div>
             </form>
@@ -312,25 +308,25 @@ export const AdminPortal: React.FC = () => {
           {/* Templates Display */}
           <div className="space-y-4">
             {templates.map(tmpl => (
-              <div key={tmpl.id} className="bg-slate-900 p-5 rounded-2xl border border-slate-800 space-y-3">
-                <div className="flex justify-between items-center">
-                  <h4 className="font-bold text-white text-base">{tmpl.title}</h4>
-                  <span className="text-xs bg-blue-500/10 text-blue-400 font-semibold px-2.5 py-1 rounded border border-blue-500/20">
+              <div key={tmpl.id} className="bg-white p-5 rounded border border-zinc-200 space-y-3">
+                <div className="flex justify-between items-center pb-2 border-b border-zinc-100">
+                  <h4 className="font-bold text-zinc-900 text-sm">{tmpl.title}</h4>
+                  <span className="text-[11px] font-mono bg-zinc-100 text-zinc-700 font-semibold px-2 py-0.5 rounded border border-zinc-200">
                     {tmpl.roleCategory}
                   </span>
                 </div>
 
                 <div className="space-y-3 text-xs">
                   {tmpl.sections.map((sec: any) => (
-                    <div key={sec.id} className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-                      <div className="font-bold text-slate-200 flex justify-between">
+                    <div key={sec.id} className="bg-zinc-50 p-3.5 rounded border border-zinc-200 space-y-2">
+                      <div className="font-semibold text-zinc-800 flex justify-between font-mono">
                         <span>{sec.title}</span>
-                        <span className="text-slate-400">{sec.questions.length} Questions</span>
+                        <span className="text-zinc-500">{sec.questions.length} Questions</span>
                       </div>
-                      <div className="space-y-1.5 text-slate-400">
+                      <div className="space-y-1 text-zinc-600">
                         {sec.questions.map((q: any) => (
-                          <div key={q.id} className="pl-3 border-l-2 border-slate-800 text-slate-300">
-                            • {q.prompt}
+                          <div key={q.id} className="pl-2 border-l-2 border-zinc-300">
+                            &bull; {q.prompt}
                           </div>
                         ))}
                       </div>
@@ -346,16 +342,16 @@ export const AdminPortal: React.FC = () => {
 
       {/* AUDIT LOGS TAB */}
       {activeTab === 'AUDIT_LOGS' && (
-        <div className="bg-slate-900 rounded-2xl border border-slate-800 p-5 space-y-3">
-          <h3 className="font-bold text-white text-sm">System Audit Trail</h3>
+        <div className="bg-white rounded border border-zinc-200 p-5 space-y-3">
+          <h3 className="font-bold text-zinc-900 text-sm font-mono uppercase tracking-wider">System Audit Trail</h3>
           <div className="space-y-2">
             {auditLogs.map(log => (
-              <div key={log.id} className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs flex justify-between items-center">
+              <div key={log.id} className="p-3 bg-zinc-50 rounded border border-zinc-200 text-xs flex justify-between items-center">
                 <div>
-                  <span className="font-bold text-blue-400 mr-2">[{log.action}]</span>
-                  <span className="text-slate-300">{log.details}</span>
+                  <span className="font-mono font-bold text-blue-700 mr-2">[{log.action}]</span>
+                  <span className="text-zinc-700">{log.details}</span>
                 </div>
-                <span className="text-slate-500 font-mono">{new Date(log.createdAt).toLocaleString()}</span>
+                <span className="text-zinc-400 font-mono text-[11px]">{new Date(log.createdAt).toLocaleString()}</span>
               </div>
             ))}
           </div>
@@ -364,17 +360,17 @@ export const AdminPortal: React.FC = () => {
 
       {/* EMAIL LOGS TAB */}
       {activeTab === 'EMAIL_LOGS' && (
-        <div className="bg-slate-900 rounded-2xl border border-slate-800 p-5 space-y-3">
-          <h3 className="font-bold text-white text-sm">Sent Email Dispatch Logs</h3>
+        <div className="bg-white rounded border border-zinc-200 p-5 space-y-3">
+          <h3 className="font-bold text-zinc-900 text-sm font-mono uppercase tracking-wider">Sent Email Dispatch Logs</h3>
           <div className="space-y-2">
             {emailLogs.map(log => (
-              <div key={log.id} className="p-3.5 bg-slate-950 rounded-xl border border-slate-800 text-xs space-y-1">
-                <div className="flex justify-between font-bold">
-                  <span className="text-emerald-400">To: {log.recipientEmail}</span>
-                  <span className="text-slate-500 font-mono">{new Date(log.sentAt).toLocaleString()}</span>
+              <div key={log.id} className="p-3.5 bg-zinc-50 rounded border border-zinc-200 text-xs space-y-1">
+                <div className="flex justify-between font-mono font-bold">
+                  <span className="text-emerald-800">To: {log.recipientEmail}</span>
+                  <span className="text-zinc-400 text-[11px]">{new Date(log.sentAt).toLocaleString()}</span>
                 </div>
-                <div className="text-slate-300 font-semibold">{log.subject}</div>
-                <div className="text-slate-400 whitespace-pre-line text-[11px] font-mono bg-slate-900 p-2 rounded border border-slate-800/80">
+                <div className="text-zinc-900 font-semibold">{log.subject}</div>
+                <div className="text-zinc-600 whitespace-pre-line text-[11px] font-mono bg-white p-2.5 rounded border border-zinc-200">
                   {log.content}
                 </div>
               </div>
@@ -383,7 +379,7 @@ export const AdminPortal: React.FC = () => {
         </div>
       )}
 
-      {/* AI Question Generator Modal */}
+      {/* Modals */}
       <AiQuestionGeneratorModal
         isOpen={isAiModalOpen}
         onClose={() => setIsAiModalOpen(false)}
@@ -391,7 +387,6 @@ export const AdminPortal: React.FC = () => {
         onSuccess={fetchData}
       />
 
-      {/* Enterprise ATS Webhooks Modal */}
       <EnterpriseWebhooksModal
         isOpen={isWebhooksModalOpen}
         onClose={() => setIsWebhooksModalOpen(false)}

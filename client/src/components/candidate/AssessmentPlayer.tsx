@@ -34,7 +34,6 @@ export const AssessmentPlayer: React.FC<AssessmentPlayerProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ attemptId, eventType, details })
       });
-      // Clear alert banner after 6 seconds
       setTimeout(() => setRecentViolationMsg(null), 6000);
     } catch (err) {
       console.error('Failed to log proctoring event', err);
@@ -115,7 +114,6 @@ export const AssessmentPlayer: React.FC<AssessmentPlayerProps> = ({
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timerRef.current as NodeJS.Timeout);
-          // Auto-submit on 00:00 timer expiry!
           handleAutoSubmitOnExpiry();
           return 0;
         }
@@ -175,9 +173,9 @@ export const AssessmentPlayer: React.FC<AssessmentPlayerProps> = ({
 
   if (loading) {
     return (
-      <div className="max-w-3xl mx-auto bg-slate-900 border border-slate-800 rounded-3xl p-12 text-center text-slate-400 space-y-4">
-        <Clock className="h-8 w-8 text-blue-500 animate-spin mx-auto" />
-        <p className="text-sm font-medium">Loading Assessment Question...</p>
+      <div className="max-w-3xl mx-auto bg-white border border-zinc-200 rounded p-12 text-center text-zinc-500 font-mono text-xs select-none">
+        <Clock className="h-6 w-6 text-zinc-400 animate-spin mx-auto mb-2" />
+        <p>Loading Assessment Question...</p>
       </div>
     );
   }
@@ -187,90 +185,74 @@ export const AssessmentPlayer: React.FC<AssessmentPlayerProps> = ({
   const { currentIndex, totalQuestions, question } = currentData;
   const isLastQuestion = currentIndex + 1 >= totalQuestions;
 
-  // Format timer MM:SS
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Timer visual urgency styling
   const isUrgent = timeLeft <= 10;
-  const isWarning = timeLeft <= 25 && !isUrgent;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-4 select-none">
+    <div className="max-w-4xl mx-auto space-y-4 select-none text-zinc-900 py-6">
       
-      {/* Proctoring Integrity Alert Banner */}
+      {/* Proctoring Warning Banner */}
       {recentViolationMsg && (
-        <div className="bg-rose-950/90 border border-rose-600 text-rose-200 px-4 py-3 rounded-2xl flex items-center justify-between shadow-2xl animate-bounce">
-          <div className="flex items-center gap-2 font-bold text-xs">
-            <ShieldAlert className="w-5 h-5 text-rose-400" />
+        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-2.5 rounded text-xs flex items-center justify-between font-mono">
+          <div className="flex items-center space-x-2 font-semibold">
+            <ShieldAlert className="w-4 h-4 text-red-600" />
             <span>{recentViolationMsg}</span>
           </div>
-          <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-rose-900 text-rose-300 border border-rose-700">
-            Total Flagged: {violationCount}
+          <span className="text-[10px] uppercase px-2 py-0.5 rounded bg-red-100 text-red-800 border border-red-200">
+            Flags: {violationCount}
           </span>
         </div>
       )}
 
-      {/* Top Assessment Header Container */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex items-center justify-between">
+      {/* Candidate Assessment Top Bar */}
+      <div className="bg-white border border-zinc-200 rounded p-4 flex items-center justify-between">
         <div>
-          <div className="flex items-center space-x-2">
-            <span className="font-extrabold text-white text-base">{jobTitle}</span>
-            <span className="text-xs bg-slate-800 text-blue-400 font-semibold px-2.5 py-0.5 rounded border border-slate-700">
-              {question.sectionTitle}
-            </span>
-            {question.type === 'CODING' && (
-              <span className="text-xs bg-cyan-950 text-cyan-400 font-bold px-2 py-0.5 rounded border border-cyan-800/60 flex items-center gap-1">
-                <Code2 className="w-3 h-3" /> Live Coding Question
-              </span>
-            )}
+          <div className="text-[11px] font-mono text-zinc-500 uppercase tracking-wider">
+            TECHSCREEN &bull; {jobTitle}
           </div>
-          <p className="text-xs text-slate-400 mt-1">
-            Question <strong className="text-white">{currentIndex + 1}</strong> of <strong className="text-white">{totalQuestions}</strong>
-          </p>
+          <div className="text-sm font-bold text-zinc-900 mt-0.5">
+            Question <span className="font-mono">{currentIndex + 1}</span> of <span className="font-mono">{totalQuestions}</span> &bull; {question.sectionTitle}
+          </div>
         </div>
 
-        {/* 60-Second / Coding Countdown Badge */}
-        <div className={`flex items-center space-x-2 px-4 py-2 rounded-xl border transition-all ${
+        {/* 60s Countdown Timer */}
+        <div className={`flex items-center space-x-2 px-3.5 py-1.5 rounded border font-mono font-bold text-sm ${
           isUrgent
-            ? 'bg-red-950/60 border-red-500 text-red-400 animate-timer-urgent shadow-lg shadow-red-500/20'
-            : isWarning
-            ? 'bg-amber-950/40 border-amber-500/80 text-amber-400'
-            : 'bg-slate-950 border-slate-800 text-blue-400'
+            ? 'bg-red-50 border-red-300 text-red-700 animate-timer-urgent'
+            : 'bg-zinc-50 border-zinc-200 text-zinc-900'
         }`}>
-          <Clock className={`h-5 w-5 ${isUrgent ? 'animate-bounce text-red-400' : ''}`} />
-          <span className="text-xl font-mono font-extrabold tracking-wider">{formatTime(timeLeft)}</span>
+          <Clock className="h-4 w-4 text-zinc-500" />
+          <span>{formatTime(timeLeft)}</span>
         </div>
       </div>
 
       {/* Question Card Container */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl space-y-6">
+      <div className="bg-white border border-zinc-200 rounded p-6 space-y-6">
         
-        {/* Progress Bar */}
-        <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-800">
+        {/* Progress Strip */}
+        <div className="w-full bg-zinc-100 h-1.5 rounded overflow-hidden">
           <div
-            className="bg-gradient-to-r from-blue-600 via-indigo-500 to-cyan-400 h-full transition-all duration-300"
+            className="bg-blue-600 h-full transition-all duration-300"
             style={{ width: `${((currentIndex + 1) / totalQuestions) * 100}%` }}
           />
         </div>
 
-        {/* Question Prompt */}
-        <div className="space-y-2">
-          <div className="flex items-center space-x-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
-              {question.type === 'MCQ_SINGLE' ? 'Single Choice' : question.type === 'MCQ_MULTI' ? 'Select All That Apply' : 'Practical Coding Challenge'}
-            </span>
-            <span className="text-[11px] font-bold text-slate-500 uppercase">{question.difficulty}</span>
+        {/* Prompt Header */}
+        <div className="space-y-1">
+          <div className="text-[10px] font-mono font-semibold text-zinc-500 uppercase tracking-wider">
+            {question.type === 'MCQ_SINGLE' ? 'Single Choice Question' : question.type === 'MCQ_MULTI' ? 'Multiple Choice Question' : 'Practical Coding Challenge'} &bull; {question.difficulty}
           </div>
-          <h3 className="text-lg font-bold text-white leading-snug">{question.prompt}</h3>
+          <h3 className="text-base font-bold text-zinc-900 leading-snug">{question.prompt}</h3>
         </div>
 
-        {/* Render MCQ Options or Live Code Editor */}
+        {/* Question Input / Code Widget */}
         {question.type === 'CODING' ? (
-          <div className="pt-2">
+          <div className="pt-1">
             <CodeEditorWidget
               questionId={question.id}
               initialCode={codeAnswer || question.codeTemplate || ''}
@@ -279,24 +261,24 @@ export const AssessmentPlayer: React.FC<AssessmentPlayerProps> = ({
             />
           </div>
         ) : (
-          <div className="space-y-3 pt-2">
+          <div className="space-y-2 pt-1">
             {question.options.map((opt: { id: string; text: string }) => {
               const isSelected = selectedOptionIds.includes(opt.id);
               return (
                 <div
                   key={opt.id}
                   onClick={() => toggleOption(opt.id, question.type)}
-                  className={`p-4 rounded-2xl border cursor-pointer transition flex items-center justify-between ${
+                  className={`p-3.5 rounded border cursor-pointer transition flex items-center justify-between text-xs ${
                     isSelected
-                      ? 'bg-blue-950/40 border-blue-500 text-white shadow-md shadow-blue-500/10'
-                      : 'bg-slate-950/60 border-slate-800/90 text-slate-300 hover:border-slate-700'
+                      ? 'bg-blue-50 border-blue-500 text-blue-900 font-semibold'
+                      : 'bg-zinc-50/50 border-zinc-200 text-zinc-800 hover:border-zinc-300'
                   }`}
                 >
-                  <div className="flex items-center space-x-3 text-sm font-medium">
-                    <div className={`w-5 h-5 rounded-${question.type === 'MCQ_SINGLE' ? 'full' : 'md'} border flex items-center justify-center transition ${
-                      isSelected ? 'bg-blue-600 border-blue-500 text-white' : 'border-slate-700 bg-slate-900'
+                  <div className="flex items-center space-x-3">
+                    <div className={`w-4 h-4 rounded-${question.type === 'MCQ_SINGLE' ? 'full' : 'sm'} border flex items-center justify-center ${
+                      isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'border-zinc-300 bg-white'
                     }`}>
-                      {isSelected && <div className={`w-2 h-2 rounded-${question.type === 'MCQ_SINGLE' ? 'full' : 'sm'} bg-white`} />}
+                      {isSelected && <div className={`w-1.5 h-1.5 rounded-${question.type === 'MCQ_SINGLE' ? 'full' : 'xs'} bg-white`} />}
                     </div>
                     <span>{opt.text}</span>
                   </div>
@@ -306,43 +288,38 @@ export const AssessmentPlayer: React.FC<AssessmentPlayerProps> = ({
           </div>
         )}
 
-        {/* Bottom Control Bar */}
-        <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
-          <div className="text-xs text-slate-500 font-medium">
-            Timer expires in <span className="font-mono font-bold text-slate-300">{timeLeft}s</span> (Auto-advance enabled)
+        {/* Action Controls */}
+        <div className="pt-4 border-t border-zinc-200 flex items-center justify-between text-xs">
+          <div className="text-zinc-500 font-mono text-[11px]">
+            Timer auto-submits upon expiry
           </div>
 
           <button
             onClick={handleManualSubmit}
             disabled={submitting}
-            className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm rounded-xl transition flex items-center space-x-2 shadow-lg shadow-blue-600/20 disabled:opacity-50"
+            className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white font-semibold rounded flex items-center space-x-2 transition disabled:opacity-50"
           >
-            <span>{isLastQuestion ? 'Lock & Submit Final Assessment' : 'Lock & Next Question'}</span>
-            {isLastQuestion ? <Lock className="h-4 w-4" /> : <ArrowRight className="h-4 w-4" />}
+            <span>{isLastQuestion ? 'Submit Final Assessment' : 'Next Question'}</span>
+            {isLastQuestion ? <Lock className="h-3.5 w-3.5" /> : <ArrowRight className="h-3.5 w-3.5" />}
           </button>
         </div>
 
       </div>
 
-      {/* Proctoring Readiness Footer Indicator */}
-      <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl px-4 py-2.5 flex items-center justify-between text-xs text-slate-400">
-        <div className="flex items-center space-x-2 font-semibold text-emerald-400">
-          <ShieldCheck className="h-4 w-4" />
-          <span>Proctoring Integrity Engine: ACTIVE</span>
+      {/* Integrity Monitor Footer */}
+      <div className="bg-white border border-zinc-200 rounded px-4 py-2.5 flex items-center justify-between text-xs text-zinc-500 font-mono">
+        <div className="flex items-center space-x-2 font-semibold text-zinc-900">
+          <ShieldCheck className="h-4 w-4 text-emerald-600" />
+          <span>INTEGRITY MONITOR</span>
         </div>
         <div className="flex items-center space-x-4 text-[11px]">
-          <span className="flex items-center space-x-1"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> <span>Focus Monitor</span></span>
-          <span className="flex items-center space-x-1"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> <span>Fullscreen Check</span></span>
-          <span className="flex items-center space-x-1"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> <span>Copy/Paste Protection</span></span>
-          {violationCount > 0 && (
-            <span className="text-rose-400 font-bold flex items-center gap-1">
-              <AlertTriangle className="w-3.5 h-3.5" /> {violationCount} Violations Logged
-            </span>
-          )}
+          <span className="flex items-center space-x-1"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> <span>Screen [OK]</span></span>
+          <span className="flex items-center space-x-1"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> <span>Camera [OK]</span></span>
+          <span className="flex items-center space-x-1"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> <span>Mic [OK]</span></span>
+          <span className="flex items-center space-x-1"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> <span>Fullscreen [OK]</span></span>
         </div>
       </div>
 
     </div>
   );
 };
-

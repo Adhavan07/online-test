@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, X, Check, Loader2, Code, HelpCircle } from 'lucide-react';
+import { Sparkles, X, Check, Loader2 } from 'lucide-react';
 
 interface AiQuestionGeneratorModalProps {
   isOpen: boolean;
@@ -56,7 +56,7 @@ export const AiQuestionGeneratorModal: React.FC<AiQuestionGeneratorModalProps> =
         setTimeout(() => {
           onSuccess();
           onClose();
-        }, 1500);
+        }, 1200);
       } else {
         setError(data.error || 'Failed to generate AI questions');
       }
@@ -68,37 +68,35 @@ export const AiQuestionGeneratorModal: React.FC<AiQuestionGeneratorModalProps> =
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl space-y-5 p-6 relative">
+    <div className="fixed inset-0 z-50 bg-zinc-900/40 backdrop-blur-xs flex items-center justify-center p-4 select-none">
+      <div className="bg-white border border-zinc-200 rounded-md max-w-lg w-full overflow-hidden shadow-lg p-6 space-y-4 text-zinc-900">
         
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-          <div className="flex items-center space-x-2.5">
-            <div className="p-2 bg-gradient-to-tr from-purple-600 to-indigo-600 rounded-xl text-white shadow-md">
-              <Sparkles className="h-5 w-5" />
-            </div>
+        <div className="flex items-center justify-between border-b border-zinc-200 pb-3">
+          <div className="flex items-center space-x-2">
+            <Sparkles className="h-4 w-4 text-amber-500" />
             <div>
-              <h3 className="font-extrabold text-white text-base">AI Question & Challenge Builder</h3>
-              <p className="text-xs text-slate-400">Generate styled MCQs & Coding challenges with test suites</p>
+              <h3 className="font-bold text-zinc-900 text-sm">AI Question & Challenge Generator</h3>
+              <p className="text-xs text-zinc-500">Automated MCQ & practical code challenge synthesis</p>
             </div>
           </div>
           <button 
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition"
+            className="text-zinc-500 hover:bg-zinc-200 p-1 rounded transition"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
         {error && (
-          <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-xs text-red-400">
+          <div className="p-2.5 bg-red-50 border border-red-200 rounded text-xs text-red-700">
             {error}
           </div>
         )}
 
         {message && (
-          <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs text-emerald-400 flex items-center space-x-2">
-            <Check className="h-4 w-4 shrink-0" />
+          <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded text-xs text-emerald-800 flex items-center space-x-2">
+            <Check className="h-3.5 w-3.5 shrink-0" />
             <span>{message}</span>
           </div>
         )}
@@ -106,11 +104,11 @@ export const AiQuestionGeneratorModal: React.FC<AiQuestionGeneratorModalProps> =
         <form onSubmit={handleGenerate} className="space-y-4 text-xs">
           
           <div>
-            <label className="block text-slate-300 font-semibold mb-1">Target Template Section</label>
+            <label className="block text-zinc-700 font-semibold mb-1">Target Template Section</label>
             <select
               value={selectedSectionId}
               onChange={(e) => setSelectedSectionId(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-purple-500"
+              className="w-full bg-white border border-zinc-200 rounded px-3 py-1.5 text-zinc-900 focus:border-zinc-400"
             >
               {sections.map(sec => (
                 <option key={sec.id} value={sec.id}>
@@ -121,53 +119,53 @@ export const AiQuestionGeneratorModal: React.FC<AiQuestionGeneratorModalProps> =
           </div>
 
           <div>
-            <label className="block text-slate-300 font-semibold mb-1">AI Prompt Topic / Domain</label>
+            <label className="block text-zinc-700 font-semibold mb-1">AI Topic / Technical Domain</label>
             <input
               type="text"
               placeholder="e.g. React Custom Hooks, System Architecture, SQL Indexing"
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+              className="w-full bg-white border border-zinc-200 rounded px-3 py-1.5 text-zinc-900 focus:border-zinc-400"
               required
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Difficulty Level</label>
+              <label className="block text-zinc-700 font-semibold mb-1">Difficulty Level</label>
               <select
                 value={difficulty}
                 onChange={(e: any) => setDifficulty(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-purple-500"
+                className="w-full bg-white border border-zinc-200 rounded px-3 py-1.5 text-zinc-900 focus:border-zinc-400 font-mono"
               >
-                <option value="EASY">Easy</option>
-                <option value="MEDIUM">Medium</option>
-                <option value="HARD">Hard</option>
+                <option value="EASY">EASY</option>
+                <option value="MEDIUM">MEDIUM</option>
+                <option value="HARD">HARD</option>
               </select>
             </div>
 
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Question Type</label>
+              <label className="block text-zinc-700 font-semibold mb-1">Question Type</label>
               <select
                 value={questionType}
                 onChange={(e: any) => setQuestionType(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-purple-500"
+                className="w-full bg-white border border-zinc-200 rounded px-3 py-1.5 text-zinc-900 focus:border-zinc-400 font-mono"
               >
-                <option value="MCQ_SINGLE">Multiple Choice (MCQ)</option>
-                <option value="CODING">Live Coding Challenge</option>
+                <option value="MCQ_SINGLE">MCQ Single Choice</option>
+                <option value="CODING">Practical Coding</option>
               </select>
             </div>
           </div>
 
           <div>
-            <label className="block text-slate-300 font-semibold mb-1">Questions Count: <strong className="text-purple-400">{count}</strong></label>
+            <label className="block text-zinc-700 font-semibold mb-1">Questions Count: <strong className="font-mono text-zinc-900">{count}</strong></label>
             <input
               type="range"
               min={1}
               max={5}
               value={count}
               onChange={(e) => setCount(parseInt(e.target.value))}
-              className="w-full accent-purple-500"
+              className="w-full accent-zinc-900"
             />
           </div>
 
@@ -175,7 +173,7 @@ export const AiQuestionGeneratorModal: React.FC<AiQuestionGeneratorModalProps> =
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl transition"
+              className="px-3.5 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-medium rounded transition"
             >
               Cancel
             </button>
@@ -183,16 +181,16 @@ export const AiQuestionGeneratorModal: React.FC<AiQuestionGeneratorModalProps> =
             <button
               type="submit"
               disabled={loading}
-              className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-xl transition shadow-lg shadow-purple-600/20 flex items-center space-x-2 disabled:opacity-50"
+              className="px-4 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white font-semibold rounded transition flex items-center space-x-1.5 disabled:opacity-50"
             >
               {loading ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Generating AI Questions...</span>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <span>Synthesizing...</span>
                 </>
               ) : (
                 <>
-                  <Sparkles className="h-4 w-4" />
+                  <Sparkles className="h-3.5 w-3.5 text-amber-400" />
                   <span>Generate Questions</span>
                 </>
               )}

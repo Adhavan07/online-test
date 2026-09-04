@@ -17,14 +17,12 @@ export const SystemCheck: React.FC<SystemCheckProps> = ({
   const handleGrantPermissions = async () => {
     setGranting(true);
     try {
-      // Simulate real browser permissions request or native getDisplayMedia call if supported
       if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
         try {
           const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-          stream.getTracks().forEach(t => t.stop()); // Clean up test stream
+          stream.getTracks().forEach(t => t.stop());
           setScreenSharingGranted(true);
         } catch {
-          // Fallback simulation for headless or restricted browser subagents
           setScreenSharingGranted(true);
         }
       } else {
@@ -38,115 +36,105 @@ export const SystemCheck: React.FC<SystemCheckProps> = ({
   };
 
   return (
-    <div className="max-w-2xl mx-auto bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl space-y-6">
+    <div className="max-w-2xl mx-auto bg-white border border-zinc-200 rounded p-8 shadow-sm space-y-6 select-none text-zinc-900 my-8">
       
       {/* Header */}
-      <div className="text-center space-y-2">
-        <div className="inline-flex p-3 bg-emerald-500/10 text-emerald-400 rounded-2xl ring-1 ring-emerald-500/20 mb-1">
-          <ShieldCheck className="h-7 w-7" />
+      <div className="text-center space-y-1.5 pb-4 border-b border-zinc-200">
+        <div className="inline-flex p-2 bg-zinc-100 text-zinc-800 rounded mb-1">
+          <ShieldCheck className="h-6 w-6 text-emerald-600" />
         </div>
-        <h2 className="text-2xl font-extrabold text-white">Pre-Assessment System Check</h2>
-        <p className="text-xs text-slate-400">
-          Verify your hardware and browser compatibility before starting your technical screening for <strong className="text-white">{jobTitle}</strong>.
+        <h2 className="text-xl font-bold text-zinc-900 tracking-tight">Pre-Assessment System Verification</h2>
+        <p className="text-xs text-zinc-600">
+          Verify hardware and browser compatibility before commencing screening for <strong className="text-zinc-900">{jobTitle}</strong>.
         </p>
       </div>
 
       {/* System Check Status Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
         
-        <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-slate-900 rounded-xl text-blue-400">
-              <Camera className="h-5 w-5" />
-            </div>
+        <div className="bg-zinc-50 p-3.5 rounded border border-zinc-200 flex items-center justify-between">
+          <div className="flex items-center space-x-2.5">
+            <Camera className="h-4 w-4 text-zinc-500" />
             <div>
-              <div className="font-bold text-white">Webcam / Camera</div>
-              <div className="text-[11px] text-slate-400">Video readiness</div>
+              <div className="font-semibold text-zinc-900">Webcam / Camera</div>
+              <div className="text-[11px] text-zinc-500 font-mono">Video stream ready</div>
             </div>
           </div>
-          <div className="flex items-center space-x-1 text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            <span>Ready</span>
-          </div>
+          <span className="text-[11px] font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+            [READY]
+          </span>
         </div>
 
-        <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-slate-900 rounded-xl text-indigo-400">
-              <Mic className="h-5 w-5" />
-            </div>
+        <div className="bg-zinc-50 p-3.5 rounded border border-zinc-200 flex items-center justify-between">
+          <div className="flex items-center space-x-2.5">
+            <Mic className="h-4 w-4 text-zinc-500" />
             <div>
-              <div className="font-bold text-white">Microphone</div>
-              <div className="text-[11px] text-slate-400">Audio input check</div>
+              <div className="font-semibold text-zinc-900">Microphone Input</div>
+              <div className="text-[11px] text-zinc-500 font-mono">Audio stream ready</div>
             </div>
           </div>
-          <div className="flex items-center space-x-1 text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            <span>Ready</span>
-          </div>
+          <span className="text-[11px] font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+            [READY]
+          </span>
         </div>
 
-        <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex items-center justify-between sm:col-span-2">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-slate-900 rounded-xl text-purple-400">
-              <Monitor className="h-5 w-5" />
-            </div>
+        <div className="bg-zinc-50 p-3.5 rounded border border-zinc-200 flex items-center justify-between sm:col-span-2">
+          <div className="flex items-center space-x-2.5">
+            <Monitor className="h-4 w-4 text-zinc-500" />
             <div>
-              <div className="font-bold text-white">Screen Sharing & Fullscreen</div>
-              <div className="text-[11px] text-slate-400">Entire screen sharing permission</div>
+              <div className="font-semibold text-zinc-900">Screen Sharing & Fullscreen</div>
+              <div className="text-[11px] text-zinc-500">Required for proctored evaluation environment</div>
             </div>
           </div>
           {screenSharingGranted ? (
-            <div className="flex items-center space-x-1 text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              <span>Granted</span>
-            </div>
+            <span className="text-[11px] font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+              [GRANTED]
+            </span>
           ) : (
             <button
               onClick={handleGrantPermissions}
               disabled={granting}
-              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs rounded-lg transition"
+              className="px-3 py-1 bg-zinc-900 hover:bg-zinc-800 text-white font-semibold text-xs rounded transition"
             >
-              {granting ? 'Testing...' : 'Grant & Verify'}
+              {granting ? 'Testing...' : 'Verify Permission'}
             </button>
           )}
         </div>
 
-        <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex items-center justify-between sm:col-span-2">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-slate-900 rounded-xl text-amber-400">
-              <Globe className="h-5 w-5" />
-            </div>
+        <div className="bg-zinc-50 p-3.5 rounded border border-zinc-200 flex items-center justify-between sm:col-span-2">
+          <div className="flex items-center space-x-2.5">
+            <Globe className="h-4 w-4 text-zinc-500" />
             <div>
-              <div className="font-bold text-white">Browser & Network Connection</div>
-              <div className="text-[11px] text-slate-400">HTML5 WebSockets & low latency stream</div>
+              <div className="font-semibold text-zinc-900">Network & Latency</div>
+              <div className="text-[11px] text-zinc-500 font-mono">WebSocket telemetry connection stable</div>
             </div>
           </div>
-          <div className="flex items-center space-x-1 text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            <span>Stable</span>
-          </div>
+          <span className="text-[11px] font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+            [STABLE]
+          </span>
         </div>
 
       </div>
 
-      {/* Proctoring Rules Agreement */}
-      <div className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800 space-y-3">
-        <h4 className="font-bold text-white text-xs uppercase tracking-wider">Assessment Rules & Proctoring Consent</h4>
-        <ul className="text-xs text-slate-300 space-y-1.5 list-disc list-inside">
-          <li>Each question has a strict <strong>60-second timer</strong>. Unanswered questions automatically lock upon timer expiry.</li>
-          <li>System compatibility and events will be recorded during the test session.</li>
-          <li>Do not refresh or exit fullscreen during the assessment.</li>
+      {/* Rules & Guidelines */}
+      <div className="bg-zinc-50 p-4 rounded border border-zinc-200 space-y-2.5 text-xs">
+        <h4 className="font-mono font-semibold text-zinc-700 uppercase tracking-wider text-[11px]">
+          Proctoring Protocol Guidelines
+        </h4>
+        <ul className="text-zinc-600 space-y-1 list-disc list-inside">
+          <li>Each question carries a strict <strong>60-second timer</strong> that auto-advances upon expiry.</li>
+          <li>Tab switching, window unfocusing, and copy-pasting are monitored and logged.</li>
+          <li>Ensure your environment is free from external distractions.</li>
         </ul>
 
-        <label className="flex items-center space-x-3 cursor-pointer pt-2 border-t border-slate-800/80">
+        <label className="flex items-center space-x-2.5 cursor-pointer pt-2 border-t border-zinc-200">
           <input
             type="checkbox"
             checked={agreed}
             onChange={(e) => setAgreed(e.target.checked)}
-            className="h-4 w-4 rounded bg-slate-900 border-slate-700 text-emerald-600 focus:ring-emerald-500"
+            className="h-3.5 w-3.5 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900"
           />
-          <span className="text-xs font-semibold text-white">I agree to the assessment rules and proctoring guidelines.</span>
+          <span className="font-semibold text-zinc-900 text-xs">I acknowledge and accept the evaluation proctoring protocol.</span>
         </label>
       </div>
 
@@ -154,10 +142,10 @@ export const SystemCheck: React.FC<SystemCheckProps> = ({
       <button
         disabled={!agreed}
         onClick={onSystemCheckComplete}
-        className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 rounded-2xl transition flex items-center justify-center space-x-2 shadow-lg shadow-emerald-600/25 disabled:opacity-40 disabled:cursor-not-allowed"
+        className="w-full bg-zinc-900 hover:bg-zinc-800 text-white font-semibold py-3 rounded transition flex items-center justify-center space-x-2 disabled:opacity-40 disabled:cursor-not-allowed text-xs"
       >
-        <span>Start Technical Assessment</span>
-        <ArrowRight className="h-4 w-4" />
+        <span>Commence Technical Assessment</span>
+        <ArrowRight className="h-3.5 w-3.5" />
       </button>
 
     </div>
