@@ -1,16 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { 
   Users, CheckCircle2, AlertCircle, Clock, Search, Filter, 
-  Plus, UserPlus, Eye, FileText, Copy, Check, ExternalLink, Briefcase, FileSpreadsheet, Download
+  Plus, UserPlus, Eye, FileText, Copy, Check, ExternalLink, Briefcase, FileSpreadsheet, Download, BarChart3
 } from 'lucide-react';
 import { CreateJobModal } from './CreateJobModal';
 import { InviteCandidateModal } from './InviteCandidateModal';
 import { BulkInviteModal } from './BulkInviteModal';
 import { CandidateDetailDrawer } from './CandidateDetailDrawer';
+import { AnalyticsDashboard } from './AnalyticsDashboard';
 import { ResumeViewerModal } from '../common/ResumeViewerModal';
 import { EmailPreviewModal } from '../common/EmailPreviewModal';
 
 export const RecruiterDashboard: React.FC = () => {
+  const [activeView, setActiveView] = useState<'PIPELINE' | 'ANALYTICS'>('PIPELINE');
   const [jobs, setJobs] = useState<any[]>([]);
   const [templates, setTemplates] = useState<any[]>([]);
   const [candidates, setCandidates] = useState<any[]>([]);
@@ -92,14 +94,43 @@ export const RecruiterDashboard: React.FC = () => {
   return (
     <div className="space-y-6">
       
-      {/* Top Banner & Main Actions */}
+      {/* Top Banner & View Navigation */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-900/60 p-6 rounded-2xl border border-slate-800 backdrop-blur">
         <div>
-          <h1 className="text-2xl font-extrabold text-white tracking-tight">Recruiter Technical Hiring Dashboard</h1>
-          <p className="text-xs text-slate-400 mt-1">Automated Candidate Screening, Proctoring Audits & HR Pipeline Management</p>
+          <div className="flex items-center space-x-3 mb-1">
+            <h1 className="text-2xl font-extrabold text-white tracking-tight">Recruiter Technical Hiring Dashboard</h1>
+          </div>
+          <p className="text-xs text-slate-400">Automated Candidate Screening, Proctoring Audits & HR Pipeline Management</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* View Switcher Tabs */}
+          <div className="flex items-center space-x-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+            <button
+              onClick={() => setActiveView('PIPELINE')}
+              className={`flex items-center space-x-2 px-3.5 py-2 rounded-lg text-xs font-bold transition ${
+                activeView === 'PIPELINE'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+              }`}
+            >
+              <Users className="h-3.5 w-3.5" />
+              <span>Pipeline View</span>
+            </button>
+
+            <button
+              onClick={() => setActiveView('ANALYTICS')}
+              className={`flex items-center space-x-2 px-3.5 py-2 rounded-lg text-xs font-bold transition ${
+                activeView === 'ANALYTICS'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+              }`}
+            >
+              <BarChart3 className="h-3.5 w-3.5 text-cyan-400" />
+              <span>Executive Analytics</span>
+            </button>
+          </div>
+
           <a
             href="/api/candidates/export-csv"
             download
@@ -134,6 +165,11 @@ export const RecruiterDashboard: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {activeView === 'ANALYTICS' ? (
+        <AnalyticsDashboard jobs={jobs} />
+      ) : (
+        <>
 
       {/* Overview Metric Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -357,6 +393,8 @@ export const RecruiterDashboard: React.FC = () => {
         </div>
 
       </div>
+      </>
+      )}
 
       {/* Modals */}
       <CreateJobModal

@@ -467,3 +467,146 @@ candidatesRouter.post('/:applicationId/resend-invite', async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
+/**
+ * Get Team Recruiter Notes for Application
+ */
+candidatesRouter.get('/:applicationId/notes', async (req, res) => {
+  const { applicationId } = req.params;
+
+  try {
+    const notes = await prisma.recruiterNote.findMany({
+      where: { applicationId },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json({ success: true, notes });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * Add Recruiter Team Note & Star Rating
+ */
+candidatesRouter.post('/:applicationId/notes', async (req, res) => {
+  const { applicationId } = req.params;
+  const { authorName, rating, comment } = req.body;
+
+  try {
+    if (!comment || !comment.trim()) {
+      return res.status(400).json({ success: false, error: 'Note comment is required' });
+    }
+
+    const note = await prisma.recruiterNote.create({
+      data: {
+        applicationId,
+        authorName: authorName || 'Hiring Recruiter',
+        rating: rating || 5,
+        comment,
+      }
+    });
+
+    res.json({ success: true, note });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * Recruiter Action: Reset Assessment Attempt (Allow Candidate Retake)
+ */
+candidatesRouter.post('/:applicationId/reset-attempt', async (req, res) => {
+  const { applicationId } = req.params;
+
+  try {
+    const application = await prisma.jobApplication.findUnique({
+      where: { id: applicationId },
+      include: { candidate: true, job: true }
+    });
+
+    if (!application) return res.status(404).json({ success: false, error: 'Application not found' });
+
+    // Generate new token & extend expiration
+    const newToken = `cand-${Math.random().toString(36).substr(2, 9)}-${Date.now().toString(36)}`;
+    const newExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    await prisma.jobApplication.update({
+      where: { id: applicationId },
+      data: {
+        status: 'INVITED',
+        token: newToken,
+        tokenExpiresAt: newExpiresAt,
+      }
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        action: 'ASSESSMENT_RETEST_GRANTED',
+        entity: 'JobApplication',
+        details: `Granted retake permission to candidate ${application.candidate.name} for job ${application.job.title}.`,
+      }
+    });
+
+    const host = req.get('host') || 'localhost:3000';
+    const baseUrl = `http://${host.replace(':5000', ':3000')}`;
+
+    await EmailService.sendInvitation(
+      application.candidate.name,
+      application.candidate.email,
+      application.job.title,
+      newToken,
+      baseUrl
+    );
+
+    res.json({ success: true, message: `Assessment reset successfully. Retake link dispatched to ${application.candidate.email}` });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * Recruiter Action: Schedule HR Interview & Send Invitation
+ */
+candidatesRouter.post('/:applicationId/schedule-interview', async (req, res) => {
+  const { applicationId } = req.params;
+  const { interviewScheduledAt, interviewLink } = req.body;
+
+  try {
+    if (!interviewScheduledAt) {
+      return res.status(400).json({ success: false, error: 'interviewScheduledAt date is required' });
+    }
+
+    const application = await prisma.jobApplication.update({
+      where: { id: applicationId },
+      data: {
+        status: 'HR_INTERVIEW',
+        interviewScheduledAt: new Date(interviewScheduledAt),
+        interviewLink: interviewLink || 'https://meet.google.com/techscreen-hr-interview',
+      },
+      include: { candidate: true, job: true }
+    });
+
+    const inviteContent = `Hi ${application.candidate.name},\n\nCongratulations! Based on your technical assessment score, you have been shortlisted for an HR Interview for the position of ${application.job.title}.\n\nScheduled Date/Time: ${new Date(interviewScheduledAt).toLocaleString()}\nMeeting Link: ${application.interviewLink}\n\nBest regards,\nTechScreen Pro Hiring Team`;
+
+    await prisma.emailLog.create({
+      data: {
+        recipientEmail: application.candidate.email,
+        subject: `HR Interview Invitation - ${application.job.title}`,
+        type: 'INVITATION',
+        content: inviteContent,
+      }
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        action: 'HR_INTERVIEW_SCHEDULED',
+        entity: 'JobApplication',
+        details: `Scheduled HR interview for candidate ${application.candidate.name} on ${new Date(interviewScheduledAt).toLocaleString()}`,
+      }
+    });
+
+    res.json({ success: true, application, message: 'HR Interview scheduled and candidate notified via email.' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});

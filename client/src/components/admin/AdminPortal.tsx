@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { 
-  Building2, Users, FileText, Database, ShieldCheck, Mail, Plus, CheckCircle, ChevronDown, ChevronRight
+  Building2, Users, FileText, Database, ShieldCheck, Mail, Plus, CheckCircle, ChevronDown, ChevronRight, Sparkles, Network
 } from 'lucide-react';
+import { AiQuestionGeneratorModal } from './AiQuestionGeneratorModal';
+import { EnterpriseWebhooksModal } from '../recruiter/EnterpriseWebhooksModal';
 
 export const AdminPortal: React.FC = () => {
   const [stats, setStats] = useState<any>(null);
@@ -10,6 +12,10 @@ export const AdminPortal: React.FC = () => {
   const [templates, setTemplates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'METRICS' | 'QUESTION_BANK' | 'AUDIT_LOGS' | 'EMAIL_LOGS'>('METRICS');
+
+  // Modals state
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [isWebhooksModalOpen, setIsWebhooksModalOpen] = useState(false);
 
   // Add Question Modal state
   const [selectedSectionId, setSelectedSectionId] = useState<string>('');
@@ -106,30 +112,48 @@ export const AdminPortal: React.FC = () => {
           <p className="text-xs text-slate-400 mt-1">Manage Companies, Question Banks, Global Settings & System Logs</p>
         </div>
 
-        {/* Sub Navigation */}
-        <div className="flex items-center space-x-2 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
-          {[
-            { id: 'METRICS', label: 'Platform Metrics', icon: Database },
-            { id: 'QUESTION_BANK', label: 'Question Bank', icon: FileText },
-            { id: 'AUDIT_LOGS', label: 'Audit Logs', icon: ShieldCheck },
-            { id: 'EMAIL_LOGS', label: 'Email Logs', icon: Mail },
-          ].map(tab => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                  activeTab === tab.id
-                    ? 'bg-blue-600 text-white'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => setIsAiModalOpen(true)}
+            className="flex items-center space-x-1.5 px-3.5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl transition shadow-md shadow-purple-600/20"
+          >
+            <Sparkles className="h-4 w-4" />
+            <span>AI Question Generator</span>
+          </button>
+
+          <button
+            onClick={() => setIsWebhooksModalOpen(true)}
+            className="flex items-center space-x-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition"
+          >
+            <Network className="h-4 w-4 text-blue-400" />
+            <span>ATS Webhooks</span>
+          </button>
+
+          {/* Sub Navigation */}
+          <div className="flex items-center space-x-2 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
+            {[
+              { id: 'METRICS', label: 'Platform Metrics', icon: Database },
+              { id: 'QUESTION_BANK', label: 'Question Bank', icon: FileText },
+              { id: 'AUDIT_LOGS', label: 'Audit Logs', icon: ShieldCheck },
+              { id: 'EMAIL_LOGS', label: 'Email Logs', icon: Mail },
+            ].map(tab => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                    activeTab === tab.id
+                      ? 'bg-blue-600 text-white'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -358,6 +382,20 @@ export const AdminPortal: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* AI Question Generator Modal */}
+      <AiQuestionGeneratorModal
+        isOpen={isAiModalOpen}
+        onClose={() => setIsAiModalOpen(false)}
+        sections={templates.flatMap(t => t.sections.map((s: any) => ({ ...s, template: t })))}
+        onSuccess={fetchData}
+      />
+
+      {/* Enterprise ATS Webhooks Modal */}
+      <EnterpriseWebhooksModal
+        isOpen={isWebhooksModalOpen}
+        onClose={() => setIsWebhooksModalOpen(false)}
+      />
 
     </div>
   );

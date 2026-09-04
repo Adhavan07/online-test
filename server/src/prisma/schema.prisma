@@ -100,18 +100,33 @@ model Candidate {
 }
 
 model JobApplication {
-  id             String             @id @default(uuid())
-  candidateId    String
-  candidate      Candidate          @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-  jobId          String
-  job            Job                @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  status         String             @default("APPLIED") // APPLIED, INVITED, STARTED, IN_PROGRESS, SUBMITTED, EVALUATING, PASSED, FAILED, SHORTLISTED, HR_INTERVIEW, REJECTED
-  token          String             @unique
-  tokenExpiresAt DateTime
-  otpCode        String?
-  isOtpVerified  Boolean            @default(false)
-  attempts       AssessmentAttempt[]
-  createdAt      DateTime           @default(now())
+  id                   String             @id @default(uuid())
+  candidateId          String
+  candidate            Candidate          @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  jobId                String
+  job                  Job                @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  status               String             @default("APPLIED") // APPLIED, INVITED, STARTED, IN_PROGRESS, SUBMITTED, EVALUATING, PASSED, FAILED, SHORTLISTED, HR_INTERVIEW, REJECTED
+  token                String             @unique
+  tokenExpiresAt       DateTime
+  otpCode              String?
+  isOtpVerified        Boolean            @default(false)
+  interviewScheduledAt DateTime?
+  interviewLink        String?
+  attempts             AssessmentAttempt[]
+  notes                RecruiterNote[]
+  liveSessions         LiveInterviewSession[]
+  badges               VerifiedBadge[]
+  createdAt            DateTime           @default(now())
+}
+
+model RecruiterNote {
+  id            String         @id @default(uuid())
+  applicationId String
+  application   JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  authorName    String         @default("Hiring Manager")
+  rating        Int            @default(5) // 1-5 stars rating
+  comment       String
+  createdAt     DateTime       @default(now())
 }
 
 model AssessmentAttempt {
@@ -186,3 +201,44 @@ model AuditLog {
   details   String
   createdAt DateTime @default(now())
 }
+
+model LiveInterviewSession {
+  id                String         @id @default(uuid())
+  applicationId     String
+  application       JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  roomToken         String         @unique
+  interviewerName   String         @default("Tech Lead / Recruiter")
+  status            String         @default("SCHEDULED") // SCHEDULED, IN_PROGRESS, COMPLETED
+  codeBuffer        String?        // Shared pair-coding buffer
+  sharedNotes       String?        // Live scratchpad & interview notes
+  interviewerRating Int?           // 1-5 score
+  feedbackSummary   String?
+  scheduledAt       DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+}
+
+model VerifiedBadge {
+  id                    String         @id @default(uuid())
+  badgeId               String         @unique
+  applicationId         String
+  application           JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  candidateName         String
+  jobTitle              String
+  skillDomain           String
+  overallScore          Int
+  trustScore            Int
+  verificationSignature String
+  issuedAt              DateTime       @default(now())
+}
+
+model WebhookConfig {
+  id               String    @id @default(uuid())
+  name             String    @default("Enterprise ATS Sync")
+  endpointUrl      String
+  secretKey        String
+  eventsJson       String    // JSON string e.g. ["candidate.completed", "assessment.passed"]
+  isActive         Boolean   @default(true)
+  lastDispatchedAt DateTime?
+  createdAt        DateTime  @default(now())
+}
+
