@@ -37,6 +37,12 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
     }
   }, [isOpen, externalTemplates]);
 
+  useEffect(() => {
+    if (!templateId && templates.length > 0) {
+      setTemplateId(templates[0].id);
+    }
+  }, [templates, templateId]);
+
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {

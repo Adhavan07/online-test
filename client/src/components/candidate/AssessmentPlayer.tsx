@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Clock, ShieldCheck, ArrowRight, CheckCircle2, Lock, AlertTriangle, ShieldAlert, Code2 } from 'lucide-react';
+import { Clock, ShieldCheck, ArrowRight, CheckCircle2, Lock, AlertTriangle, ShieldAlert, Code2, Camera } from 'lucide-react';
 import { CodeEditorWidget } from './CodeEditorWidget';
 
 interface AssessmentPlayerProps {
@@ -21,8 +21,92 @@ export const AssessmentPlayer: React.FC<AssessmentPlayerProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [violationCount, setViolationCount] = useState<number>(0);
   const [recentViolationMsg, setRecentViolationMsg] = useState<string | null>(null);
+  const [isScreenSharePaused, setIsScreenSharePaused] = useState<boolean>(false);
+  const [isCameraDisconnected, setIsCameraDisconnected] = useState<boolean>(false);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const selectedOptionIdsRef = useRef<string[]>(selectedOptionIds);
+  const codeAnswerRef = useRef<string>(codeAnswer);
+  const timeLeftRef = useRef<number>(timeLeft);
+  const submittingRef = useRef<boolean>(submitting);
+  const screenStreamRef = useRef<MediaStream | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  // Initialize background webcam capture for periodic proctoring snapshots
+  useEffect(() => {
+    let camStream: MediaStream | null = null;
+    navigator.mediaDevices?.getUserMedia({ video: { width: 320, height: 240 } })
+      .then(stream => {
+        camStream = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      })
+      .catch(() => {
+        setIsCameraDisconnected(true);
+      });
+
+    return () => {
+      if (camStream) {
+        camStream.getTracks().forEach(t => t.stop());
+      }
+    };
+  }, []);
+
+  const captureWebcamSnapshot = async (reason: string = 'Periodic proctor check') => {
+    if (!videoRef.current || !canvasRef.current) return;
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (video.videoWidth === 0 || video.videoHeight === 0) return;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageBase64 = canvas.toDataURL('image/jpeg', 0.65);
+
+    try {
+      await fetch('/api/assessment/proctor-snapshot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          attemptId,
+          imageBase64,
+          eventType: 'WEBCAM_SNAPSHOT',
+          details: reason,
+        })
+      });
+    } catch (err) {
+      console.warn('Failed to dispatch webcam snapshot', err);
+    }
+  };
+
+  // Periodic proctoring snapshot interval (every 45 seconds)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      captureWebcamSnapshot('Periodic 45s interval frame');
+    }, 45000);
+    return () => clearInterval(interval);
+  }, [attemptId]);
+
+  useEffect(() => {
+    selectedOptionIdsRef.current = selectedOptionIds;
+  }, [selectedOptionIds]);
+
+  useEffect(() => {
+    codeAnswerRef.current = codeAnswer;
+  }, [codeAnswer]);
+
+  useEffect(() => {
+    timeLeftRef.current = timeLeft;
+  }, [timeLeft]);
+
+  useEffect(() => {
+    submittingRef.current = submitting;
+  }, [submitting]);
 
   // Send real-time proctoring log to backend
   const logProctorEvent = async (eventType: string, details: string) => {
@@ -37,6 +121,26 @@ export const AssessmentPlayer: React.FC<AssessmentPlayerProps> = ({
       setTimeout(() => setRecentViolationMsg(null), 6000);
     } catch (err) {
       console.error('Failed to log proctoring event', err);
+    }
+  };
+
+  // Restore screen share on demand
+  const restoreScreenShare = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      screenStreamRef.current = stream;
+      const track = stream.getVideoTracks()[0];
+      if (track) {
+        track.onended = () => {
+          setIsScreenSharePaused(true);
+          logProctorEvent('SCREEN_SHARE_STOPPED', 'Candidate terminated screen sharing.');
+        };
+      }
+      setIsScreenSharePaused(false);
+      setRecentViolationMsg('Screen sharing restored successfully.');
+    } catch (err) {
+      console.error('Failed to restore screen share', err);
+      alert('Screen sharing is mandatory. Please select Entire Screen to continue.');
     }
   };
 
@@ -59,16 +163,26 @@ export const AssessmentPlayer: React.FC<AssessmentPlayerProps> = ({
       logProctorEvent('COPY_PASTE', 'Attempted copy/paste operation inside assessment player.');
     };
 
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      logProctorEvent('RIGHT_CLICK', 'Attempted right-click inside assessment player.');
+    };
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     document.addEventListener('copy', handleCopyPaste);
     document.addEventListener('paste', handleCopyPaste);
+    document.addEventListener('contextmenu', handleContextMenu);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
       document.removeEventListener('copy', handleCopyPaste);
       document.removeEventListener('paste', handleCopyPaste);
+      document.removeEventListener('contextmenu', handleContextMenu);
+      if (screenStreamRef.current) {
+        screenStreamRef.current.getTracks().forEach(t => t.stop());
+      }
     };
   }, [attemptId]);
 
@@ -87,7 +201,11 @@ export const AssessmentPlayer: React.FC<AssessmentPlayerProps> = ({
           setCurrentData(json.data);
           setSelectedOptionIds(json.data.previousAnswer || []);
           setCodeAnswer(json.data.previousCodeAnswer || json.data.question.codeTemplate || '');
-          setTimeLeft(json.data.timePerQuestionSeconds || 60);
+          // Server-synchronized remainingSeconds prevents timer resets on refresh!
+          const duration = json.data.remainingSeconds !== undefined
+            ? json.data.remainingSeconds
+            : (json.data.timePerQuestionSeconds || 60);
+          setTimeLeft(duration);
           if (json.data.proctoringViolationsCount !== undefined) {
             setViolationCount(json.data.proctoringViolationsCount);
           }
@@ -104,9 +222,12 @@ export const AssessmentPlayer: React.FC<AssessmentPlayerProps> = ({
     fetchQuestion();
   }, [attemptId]);
 
-  // Timer per question countdown loop
+  // Timer per question countdown loop (paused if screen share stops)
   useEffect(() => {
-    if (loading || !currentData || currentData.isCompleted) return;
+    if (loading || !currentData || currentData.isCompleted || isScreenSharePaused) {
+      if (timerRef.current) clearInterval(timerRef.current);
+      return;
+    }
 
     if (timerRef.current) clearInterval(timerRef.current);
 
@@ -124,10 +245,11 @@ export const AssessmentPlayer: React.FC<AssessmentPlayerProps> = ({
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [loading, currentData]);
+  }, [loading, currentData, isScreenSharePaused]);
 
   const handleAutoSubmitOnExpiry = async () => {
-    if (submitting || !currentData?.question) return;
+    if (submittingRef.current || !currentData?.question) return;
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       const res = await fetch('/api/assessment/submit-answer', {
@@ -136,9 +258,9 @@ export const AssessmentPlayer: React.FC<AssessmentPlayerProps> = ({
         body: JSON.stringify({
           attemptId,
           questionId: currentData.question.id,
-          selectedOptionIds,
-          codeAnswer: currentData.question.type === 'CODING' ? codeAnswer : undefined,
-          timeSpentSeconds: (currentData.timePerQuestionSeconds || 60) - timeLeft,
+          selectedOptionIds: selectedOptionIdsRef.current,
+          codeAnswer: currentData.question.type === 'CODING' ? codeAnswerRef.current : undefined,
+          timeSpentSeconds: (currentData.timePerQuestionSeconds || 60) - timeLeftRef.current,
         })
       });
       const data = await res.json();
@@ -152,6 +274,7 @@ export const AssessmentPlayer: React.FC<AssessmentPlayerProps> = ({
     } catch (err) {
       console.error('Auto-submit error:', err);
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
@@ -194,8 +317,45 @@ export const AssessmentPlayer: React.FC<AssessmentPlayerProps> = ({
   const isUrgent = timeLeft <= 10;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-4 select-none text-zinc-900 py-6">
+    <div className="max-w-4xl mx-auto space-y-4 select-none text-zinc-900 py-6 relative">
       
+      {/* Hidden elements for capturing automated proctoring snapshots */}
+      <video ref={videoRef} autoPlay playsInline muted className="hidden" />
+      <canvas ref={canvasRef} className="hidden" />
+
+      {/* Dynamic Anti-Cheating Watermark Overlay (deter phone photo recording) */}
+      <div className="pointer-events-none fixed inset-0 z-30 select-none overflow-hidden opacity-[0.035] flex flex-wrap items-center justify-around gap-20 p-8 rotate-[-12deg]">
+        {Array.from({ length: 30 }).map((_, i) => (
+          <div key={i} className="font-mono text-xs tracking-widest text-zinc-900 font-bold uppercase whitespace-nowrap">
+            TECHSCREEN PRO &bull; VERIFIED CANDIDATE &bull; {jobTitle}
+          </div>
+        ))}
+      </div>
+
+      {/* Screen Sharing Interruption Blocking Modal */}
+      {isScreenSharePaused && (
+        <div className="fixed inset-0 z-50 bg-zinc-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-red-200 rounded-xl max-w-md w-full p-6 shadow-2xl space-y-4 text-center">
+            <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto">
+              <AlertTriangle className="h-6 w-6" />
+            </div>
+            <div className="space-y-1.5">
+              <h3 className="text-base font-bold text-zinc-900">Screen Sharing Interrupted</h3>
+              <p className="text-xs text-zinc-600 leading-relaxed">
+                Screen sharing is mandatory for this proctored assessment. The assessment question timer is currently paused. Please restore full screen sharing to resume your test.
+              </p>
+            </div>
+            <button
+              onClick={restoreScreenShare}
+              className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition flex items-center justify-center space-x-2"
+            >
+              <span>Restore Screen Sharing</span>
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Proctoring Warning Banner */}
       {recentViolationMsg && (
         <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-2.5 rounded text-xs flex items-center justify-between font-mono">
@@ -220,14 +380,22 @@ export const AssessmentPlayer: React.FC<AssessmentPlayerProps> = ({
           </div>
         </div>
 
-        {/* 60s Countdown Timer */}
-        <div className={`flex items-center space-x-2 px-3.5 py-1.5 rounded border font-mono font-bold text-sm ${
-          isUrgent
-            ? 'bg-red-50 border-red-300 text-red-700 animate-timer-urgent'
-            : 'bg-zinc-50 border-zinc-200 text-zinc-900'
-        }`}>
-          <Clock className="h-4 w-4 text-zinc-500" />
-          <span>{formatTime(timeLeft)}</span>
+        <div className="flex items-center gap-3">
+          {/* Active Proctoring Indicator */}
+          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded bg-zinc-50 border border-zinc-200 text-zinc-600 font-mono text-[11px]">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Proctored Session</span>
+          </div>
+
+          {/* 60s Countdown Timer */}
+          <div className={`flex items-center space-x-2 px-3.5 py-1.5 rounded border font-mono font-bold text-sm ${
+            isUrgent
+              ? 'bg-red-50 border-red-300 text-red-700 animate-timer-urgent'
+              : 'bg-zinc-50 border-zinc-200 text-zinc-900'
+          }`}>
+            <Clock className="h-4 w-4 text-zinc-500" />
+            <span>{formatTime(timeLeft)}</span>
+          </div>
         </div>
       </div>
 

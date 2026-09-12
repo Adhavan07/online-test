@@ -14,12 +14,16 @@ interface RecruiterDashboardProps {
   searchQuery?: string;
   initialFilter?: string;
   onNavigateView?: (view: string) => void;
+  onOpenSmtpSettings?: () => void;
+  selectedCandidateId?: string | null;
 }
 
 export const RecruiterDashboard: React.FC<RecruiterDashboardProps> = ({
   searchQuery: externalSearchQuery = '',
   initialFilter = 'ALL',
   onNavigateView,
+  onOpenSmtpSettings,
+  selectedCandidateId,
 }) => {
   const [jobs, setJobs] = useState<any[]>([]);
   const [templates, setTemplates] = useState<any[]>([]);
@@ -29,6 +33,8 @@ export const RecruiterDashboard: React.FC<RecruiterDashboardProps> = ({
   // Filters & Search
   const [selectedJobId, setSelectedJobId] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>(initialFilter);
+  const [riskFilter, setRiskFilter] = useState<'ALL' | 'LOW' | 'MEDIUM' | 'HIGH'>('ALL');
+  const [sortBy, setSortBy] = useState<'RANKING' | 'TECH' | 'RESUME' | 'DATE'>('RANKING');
   const [searchQuery, setSearchQuery] = useState<string>(externalSearchQuery);
 
   // Modals state
@@ -79,6 +85,10 @@ export const RecruiterDashboard: React.FC<RecruiterDashboardProps> = ({
   };
 
   useEffect(() => {
+    setStatusFilter(initialFilter);
+  }, [initialFilter]);
+
+  useEffect(() => {
     fetchData();
   }, [selectedJobId, statusFilter]);
 
@@ -89,10 +99,32 @@ export const RecruiterDashboard: React.FC<RecruiterDashboardProps> = ({
 
   // Metrics
   const totalApplicants = candidates.length;
-  const invitedCount = candidates.filter(c => ['INVITED', 'STARTED', 'IN_PROGRESS', 'PASSED', 'FAILED', 'SHORTLISTED', 'HR_INTERVIEW'].includes(c.status)).length;
-  const completedCount = candidates.filter(c => ['PASSED', 'FAILED', 'SHORTLISTED', 'HR_INTERVIEW', 'REJECTED'].includes(c.status)).length;
+  const invitedCount = candidates.filter(c => ['INVITED', 'STARTED', 'IN_PROGRESS', 'PASSED', 'FAILED', 'MANUAL_REVIEW', 'SHORTLISTED', 'HR_INTERVIEW'].includes(c.status)).length;
+  const completedCount = candidates.filter(c => ['PASSED', 'FAILED', 'MANUAL_REVIEW', 'SHORTLISTED', 'HR_INTERVIEW', 'REJECTED'].includes(c.status)).length;
   const passedCount = candidates.filter(c => ['PASSED', 'SHORTLISTED', 'HR_INTERVIEW'].includes(c.status)).length;
+  const manualReviewCount = candidates.filter(c => c.status === 'MANUAL_REVIEW' || c.proctoringRisk === 'HIGH').length;
   const hrCount = candidates.filter(c => c.status === 'HR_INTERVIEW' || c.status === 'SHORTLISTED').length;
+
+  const displayedCandidates = candidates
+    .filter(c => {
+      if (riskFilter !== 'ALL' && c.proctoringRisk !== riskFilter) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'RANKING') {
+        return (b.rankingScore || 0) - (a.rankingScore || 0);
+      }
+      if (sortBy === 'TECH') {
+        return (b.scorePercentage || 0) - (a.scorePercentage || 0);
+      }
+      if (sortBy === 'RESUME') {
+        return (b.resumeMatchScore || 0) - (a.resumeMatchScore || 0);
+      }
+      if (sortBy === 'DATE') {
+        return new Date(b.appliedAt).getTime() - new Date(a.appliedAt).getTime();
+      }
+      return 0;
+    });
 
   const currentDateStr = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
@@ -154,30 +186,41 @@ export const RecruiterDashboard: React.FC<RecruiterDashboardProps> = ({
         </div>
       </div>
 
-      {/* Metrics Breakdown (Typography-driven strip, no giant floating cards) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 bg-white p-4 rounded border border-zinc-200 divide-y lg:divide-y-0 lg:divide-x divide-zinc-200">
+      {/* Metrics Breakdown (Typography-driven 5-metric strip) */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 bg-white p-4 rounded border border-zinc-200 divide-y sm:divide-y-0 sm:divide-x divide-zinc-200">
         <div className="px-3 py-1">
           <div className="text-[11px] font-mono text-zinc-500 uppercase tracking-wider">Total Applicants</div>
           <div className="text-2xl font-bold text-zinc-900 mt-1 font-mono">{totalApplicants}</div>
           <div className="text-[11px] text-zinc-500 mt-0.5">Active candidates</div>
         </div>
 
-        <div className="px-3 py-1 pt-3 lg:pt-1">
+        <div className="px-3 py-1 pt-3 sm:pt-1">
           <div className="text-[11px] font-mono text-zinc-500 uppercase tracking-wider">Assessments Tested</div>
           <div className="text-2xl font-bold text-zinc-900 mt-1 font-mono">{completedCount}</div>
           <div className="text-[11px] text-zinc-500 mt-0.5">Evaluated post-timer</div>
         </div>
 
-        <div className="px-3 py-1 pt-3 lg:pt-1">
+        <div className="px-3 py-1 pt-3 sm:pt-1">
           <div className="text-[11px] font-mono text-zinc-500 uppercase tracking-wider">Passed Technical</div>
           <div className="text-2xl font-bold text-emerald-700 mt-1 font-mono">{passedCount}</div>
-          <div className="text-[11px] text-zinc-500 mt-0.5">Score &ge; Pass threshold</div>
+          <div className="text-[11px] text-zinc-500 mt-0.5">&ge; Pass threshold</div>
         </div>
 
-        <div className="px-3 py-1 pt-3 lg:pt-1">
+        <div className="px-3 py-1 pt-3 sm:pt-1">
+          <div className="text-[11px] font-mono text-zinc-500 uppercase tracking-wider flex items-center justify-between">
+            <span>Manual Review</span>
+            {manualReviewCount > 0 && <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />}
+          </div>
+          <div className={`text-2xl font-bold mt-1 font-mono ${manualReviewCount > 0 ? 'text-amber-600' : 'text-zinc-900'}`}>
+            {manualReviewCount}
+          </div>
+          <div className="text-[11px] text-zinc-500 mt-0.5">Flagged for inspection</div>
+        </div>
+
+        <div className="px-3 py-1 pt-3 sm:pt-1">
           <div className="text-[11px] font-mono text-zinc-500 uppercase tracking-wider">HR Interview Pipeline</div>
           <div className="text-2xl font-bold text-blue-700 mt-1 font-mono">{hrCount}</div>
-          <div className="text-[11px] text-zinc-500 mt-0.5">Shortlisted for HR stage</div>
+          <div className="text-[11px] text-zinc-500 mt-0.5">Shortlisted stage</div>
         </div>
       </div>
 
@@ -279,29 +322,57 @@ export const RecruiterDashboard: React.FC<RecruiterDashboardProps> = ({
             />
           </form>
 
-          {/* Status Stage Filter */}
-          <div className="flex items-center space-x-1 overflow-x-auto pb-1 sm:pb-0">
-            <Filter className="h-3.5 w-3.5 text-zinc-400 mr-1 shrink-0 hidden md:block" />
-            {[
-              { id: 'ALL', label: 'All Stages' },
-              { id: 'PASSED', label: 'Passed' },
-              { id: 'HR_INTERVIEW', label: 'HR Interview' },
-              { id: 'FAILED', label: 'Failed' },
-              { id: 'INVITED', label: 'Invited' },
-              { id: 'REJECTED', label: 'Rejected' },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setStatusFilter(tab.id)}
-                className={`px-2.5 py-1 rounded text-[11px] font-medium transition shrink-0 ${
-                  statusFilter === tab.id
-                    ? 'bg-zinc-900 text-white font-semibold'
-                    : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200/60'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+          {/* Status Stage Filter & Multi-metric Filters */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center space-x-1 overflow-x-auto pb-1 sm:pb-0">
+              <Filter className="h-3.5 w-3.5 text-zinc-400 mr-1 shrink-0 hidden md:block" />
+              {[
+                { id: 'ALL', label: 'All Stages' },
+                { id: 'PASSED', label: 'Passed' },
+                { id: 'MANUAL_REVIEW', label: 'Manual Review' },
+                { id: 'HR_INTERVIEW', label: 'HR Interview' },
+                { id: 'SHORTLISTED', label: 'Shortlisted' },
+                { id: 'FAILED', label: 'Failed' },
+                { id: 'INVITED', label: 'Invited' },
+                { id: 'REJECTED', label: 'Rejected' },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setStatusFilter(tab.id)}
+                  className={`px-2.5 py-1 rounded text-[11px] font-medium transition shrink-0 ${
+                    statusFilter === tab.id
+                      ? 'bg-zinc-900 text-white font-semibold'
+                      : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200/60'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Risk Filter Selector */}
+            <select
+              value={riskFilter}
+              onChange={(e) => setRiskFilter(e.target.value as any)}
+              className="bg-white border border-zinc-200 rounded px-2 py-1 text-[11px] text-zinc-700 font-sans focus:outline-none"
+            >
+              <option value="ALL">All Risk Levels</option>
+              <option value="LOW">LOW Risk (0-30)</option>
+              <option value="MEDIUM">MEDIUM Risk (31-60)</option>
+              <option value="HIGH">HIGH Risk (61-100)</option>
+            </select>
+
+            {/* Sort Selector */}
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="bg-white border border-zinc-200 rounded px-2 py-1 text-[11px] text-zinc-700 font-sans focus:outline-none font-medium"
+            >
+              <option value="RANKING">Sort: Composite Score</option>
+              <option value="TECH">Sort: Technical Score</option>
+              <option value="RESUME">Sort: Resume Match</option>
+              <option value="DATE">Sort: Date Applied</option>
+            </select>
           </div>
 
         </div>
@@ -313,8 +384,10 @@ export const RecruiterDashboard: React.FC<RecruiterDashboardProps> = ({
               <tr>
                 <th className="py-2.5 px-4 font-semibold">Candidate</th>
                 <th className="py-2.5 px-4 font-semibold">Role</th>
+                <th className="py-2.5 px-4 font-semibold">Resume Match</th>
                 <th className="py-2.5 px-4 font-semibold">Technical Score</th>
                 <th className="py-2.5 px-4 font-semibold">Integrity Risk</th>
+                <th className="py-2.5 px-4 font-semibold">Recommendation</th>
                 <th className="py-2.5 px-4 font-semibold">Stage</th>
                 <th className="py-2.5 px-4 font-semibold">Applied</th>
                 <th className="py-2.5 px-4 font-semibold text-right">Details</th>
@@ -323,52 +396,75 @@ export const RecruiterDashboard: React.FC<RecruiterDashboardProps> = ({
             <tbody className="divide-y divide-zinc-200">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-zinc-500 font-mono text-xs">
+                  <td colSpan={9} className="py-8 text-center text-zinc-500 font-mono text-xs">
                     Loading candidate applications...
                   </td>
                 </tr>
-              ) : candidates.length === 0 ? (
+              ) : displayedCandidates.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-zinc-500 text-xs">
+                  <td colSpan={9} className="py-8 text-center text-zinc-500 text-xs">
                     No candidates found matching current filter.
                   </td>
                 </tr>
               ) : (
-                candidates.map((application) => {
-                  const candidate = application.candidate || {};
-                  const job = application.job || {};
+                displayedCandidates.map((application) => {
+                  const appId = application.id || application.applicationId;
+                  const candidateName = application.candidate?.name || application.name || 'Anonymous Candidate';
+                  const candidateEmail = application.candidate?.email || application.email || '';
+                  const jobTitle = application.job?.title || application.jobTitle || 'DevOps Engineer';
+                  const jobLocation = application.job?.location || 'Remote';
+                  const passThreshold = application.job?.passThreshold || 70;
                   const latestAttempt = application.attempts?.[0];
-                  const result = latestAttempt?.result;
+                  const result = latestAttempt?.result || (application.scorePercentage !== null && application.scorePercentage !== undefined ? {
+                    percentage: application.scorePercentage,
+                    isPassed: application.isPassed,
+                    score: application.scorePercentage,
+                    totalPossible: 100,
+                  } : null);
 
-                  // Technical score formatting
-                  const scoreText = result ? `${result.percentage}%` : application.status === 'INVITED' ? 'Pending' : 'N/A';
-                  
-                  // Proctoring risk formatting
-                  const riskLevel = result?.proctoringRiskLevel || (latestAttempt?.proctorLogs?.length > 3 ? 'HIGH' : latestAttempt?.proctorLogs?.length > 0 ? 'MEDIUM' : 'LOW');
-                  
+                  const riskLevel = application.proctoringRisk || result?.proctoringRiskLevel || (latestAttempt?.integrityScore < 60 ? 'HIGH' : latestAttempt?.integrityScore < 85 ? 'MEDIUM' : 'LOW');
+                  const riskScore = application.proctoringRiskScore ?? (latestAttempt ? (100 - latestAttempt.integrityScore) : 0);
+                  const resumeMatch = application.resumeMatchScore ?? 80;
+                  const recommendation = application.recommendation || (application.status === 'MANUAL_REVIEW' || riskLevel === 'HIGH' ? 'MANUAL_REVIEW' : result && result.percentage >= passThreshold ? 'STRONG_CANDIDATE' : 'REJECT');
+
                   return (
                     <tr
-                      key={application.id}
-                      onClick={() => setInspectApplicationId(application.id)}
+                      key={appId}
+                      onClick={() => setInspectApplicationId(appId)}
                       className="hover:bg-zinc-50/80 cursor-pointer transition"
                     >
                       {/* Candidate Name & Email */}
                       <td className="py-3 px-4">
-                        <div className="font-semibold text-zinc-900">{candidate.name || 'Anonymous Candidate'}</div>
-                        <div className="text-[11px] text-zinc-500 font-mono">{candidate.email}</div>
+                        <div className="font-semibold text-zinc-900">{candidateName}</div>
+                        <div className="text-[11px] text-zinc-500 font-mono">{candidateEmail}</div>
                       </td>
 
                       {/* Role */}
                       <td className="py-3 px-4">
-                        <div className="font-medium text-zinc-800">{job.title || 'DevOps Engineer'}</div>
-                        <div className="text-[10px] text-zinc-400">{job.location || 'Remote'}</div>
+                        <div className="font-medium text-zinc-800">{jobTitle}</div>
+                        <div className="text-[10px] text-zinc-400">{jobLocation}</div>
+                      </td>
+
+                      {/* Resume Match % */}
+                      <td className="py-3 px-4">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-12 bg-zinc-100 h-1.5 rounded overflow-hidden">
+                            <div
+                              className={`h-full ${resumeMatch >= 80 ? 'bg-emerald-500' : resumeMatch >= 60 ? 'bg-blue-500' : 'bg-amber-500'}`}
+                              style={{ width: `${resumeMatch}%` }}
+                            />
+                          </div>
+                          <span className="font-mono text-xs font-semibold text-zinc-800">
+                            {resumeMatch}%
+                          </span>
+                        </div>
                       </td>
 
                       {/* Technical Score */}
                       <td className="py-3 px-4 font-mono font-medium">
                         {result ? (
-                          <span className={result.percentage >= (job.passThreshold || 70) ? 'text-emerald-700 font-bold' : 'text-red-600'}>
-                            {result.percentage}% ({result.score}/{result.totalPossible})
+                          <span className={result.percentage >= passThreshold ? 'text-emerald-700 font-bold' : 'text-red-600'}>
+                            {result.percentage}% {result.totalPossible && result.totalPossible !== 100 ? `(${result.score}/${result.totalPossible})` : ''}
                           </span>
                         ) : (
                           <span className="text-zinc-400 text-[11px]">--</span>
@@ -383,15 +479,30 @@ export const RecruiterDashboard: React.FC<RecruiterDashboardProps> = ({
                             riskLevel === 'MEDIUM' ? 'bg-amber-500' : 'bg-emerald-500'
                           }`} />
                           <span className="font-mono text-[11px] font-medium text-zinc-700">
-                            {riskLevel}
+                            {riskLevel} ({riskScore})
                           </span>
                         </div>
+                      </td>
+
+                      {/* Recommendation Badge */}
+                      <td className="py-3 px-4">
+                        <span className={`inline-block px-2 py-0.5 text-[10px] font-mono font-bold uppercase rounded border ${
+                          recommendation === 'STRONG_CANDIDATE' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' :
+                          recommendation === 'MANUAL_REVIEW' ? 'bg-amber-50 text-amber-900 border-amber-300' :
+                          recommendation === 'REJECT' ? 'bg-red-50 text-red-700 border-red-200' :
+                          'bg-blue-50 text-blue-800 border-blue-200'
+                        }`}>
+                          {recommendation === 'STRONG_CANDIDATE' ? 'STRONG' :
+                           recommendation === 'MANUAL_REVIEW' ? 'REVIEW' :
+                           recommendation === 'REJECT' ? 'REJECT' : 'POTENTIAL'}
+                        </span>
                       </td>
 
                       {/* Stage Tag */}
                       <td className="py-3 px-4">
                         <span className={`inline-block px-2 py-0.5 text-[11px] font-medium rounded border ${
                           application.status === 'PASSED' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' :
+                          application.status === 'MANUAL_REVIEW' ? 'bg-amber-50 text-amber-900 border-amber-300' :
                           application.status === 'HR_INTERVIEW' || application.status === 'SHORTLISTED' ? 'bg-blue-50 text-blue-800 border-blue-200' :
                           application.status === 'FAILED' ? 'bg-red-50 text-red-700 border-red-200' :
                           application.status === 'REJECTED' ? 'bg-zinc-100 text-zinc-600 border-zinc-200' :
@@ -420,7 +531,7 @@ export const RecruiterDashboard: React.FC<RecruiterDashboardProps> = ({
 
         {/* Table Footer */}
         <div className="p-3 bg-zinc-50 border-t border-zinc-200 text-xs text-zinc-500 flex justify-between items-center font-mono">
-          <span>Showing {candidates.length} candidate applications</span>
+          <span>Showing {displayedCandidates.length} of {candidates.length} candidate applications</span>
           <span>Click any row to open candidate record</span>
         </div>
 
@@ -461,6 +572,7 @@ export const RecruiterDashboard: React.FC<RecruiterDashboardProps> = ({
       <CandidateDetailDrawer
         applicationId={inspectApplicationId}
         onClose={() => setInspectApplicationId(null)}
+        onStatusChanged={fetchData}
         onUpdate={fetchData}
         onOpenResume={(name, email, fileName, url) => {
           setResumeData({ isOpen: true, name, email, fileName, url });
@@ -483,6 +595,7 @@ export const RecruiterDashboard: React.FC<RecruiterDashboardProps> = ({
         candidateName={emailPreview.candidateName}
         candidateEmail={emailPreview.candidateEmail}
         jobTitle={emailPreview.jobTitle}
+        onOpenSmtpSettings={onOpenSmtpSettings}
       />
 
     </div>

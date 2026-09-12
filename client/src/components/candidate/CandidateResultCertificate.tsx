@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Award, CheckCircle2, XCircle, Clock, ShieldCheck, Printer, ArrowRight, BookOpen, ExternalLink } from 'lucide-react';
+import { Award, CheckCircle2, XCircle, Clock, ShieldCheck, Printer, ArrowRight, ExternalLink } from 'lucide-react';
 
 interface CandidateResultCertificateProps {
   token: string;
@@ -14,22 +14,21 @@ export const CandidateResultCertificate: React.FC<CandidateResultCertificateProp
     const fetchResults = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/assessment/question?token=${token}`);
-        const data = await res.json();
-        if (data.isCompleted) {
-          // Fetch detailed candidate application info
-          const candRes = await fetch(`/api/candidates`);
-          const candData = await candRes.json();
-          const currentCand = candData.candidates?.find((c: any) => c.token === token);
+        const res = await fetch(`/api/assessment/verify/${token}`);
+        const json = await res.json();
+        if (json.success && json.data) {
+          const d = json.data;
+          const resObj = d.latestAttempt?.result;
           setResultData({
-            candidateName: currentCand?.name || 'Candidate',
-            jobTitle: currentCand?.jobTitle || 'Technical Role',
-            scorePercentage: currentCand?.scorePercentage || 0,
-            isPassed: currentCand?.isPassed || false,
-            appliedAt: currentCand?.appliedAt,
+            candidateName: d.candidate?.name || 'Candidate',
+            candidateEmail: d.candidate?.email,
+            jobTitle: d.job?.title || 'Technical Role',
+            scorePercentage: resObj?.percentage ?? (resObj?.totalScore ? Math.round((resObj.totalScore / (resObj.maxScore || 1)) * 100) : 0),
+            isPassed: resObj ? resObj.isPassed : d.status === 'PASSED' || d.status === 'HR_INTERVIEW',
+            appliedAt: d.createdAt,
           });
-        } else if (data.error) {
-          setError(data.error);
+        } else {
+          setError(json.error || 'Unable to load assessment completion report.');
         }
       } catch (err: any) {
         setError('Unable to load assessment completion report.');
@@ -47,10 +46,10 @@ export const CandidateResultCertificate: React.FC<CandidateResultCertificateProp
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4">
-        <div className="text-center space-y-3">
-          <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-sm text-slate-400 font-medium">Loading Assessment Completion Certificate...</p>
+      <div className="min-h-screen bg-[#FAFAFA] text-zinc-900 flex items-center justify-center p-4 select-none">
+        <div className="text-center space-y-2">
+          <Clock className="h-6 w-6 text-zinc-400 animate-spin mx-auto" />
+          <p className="text-xs font-mono text-zinc-500">Generating assessment verification certificate...</p>
         </div>
       </div>
     );
@@ -58,84 +57,85 @@ export const CandidateResultCertificate: React.FC<CandidateResultCertificateProp
 
   if (error || !resultData) {
     return (
-      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4">
-        <div className="bg-slate-900 border border-slate-800 p-8 rounded-2xl max-w-md w-full text-center space-y-4">
-          <XCircle className="h-12 w-12 text-red-400 mx-auto" />
-          <h2 className="text-xl font-bold">Report Unavailable</h2>
-          <p className="text-xs text-slate-400">{error || 'No assessment record found for this token.'}</p>
+      <div className="min-h-screen bg-[#FAFAFA] text-zinc-900 flex items-center justify-center p-4 select-none">
+        <div className="bg-white border border-zinc-200 p-8 rounded max-w-md w-full text-center space-y-4 shadow-xs">
+          <XCircle className="h-10 w-10 text-rose-600 mx-auto" />
+          <div>
+            <h2 className="text-base font-bold text-zinc-900 tracking-tight">Record Unavailable</h2>
+            <p className="text-xs text-zinc-500 mt-1">{error || 'No assessment record found for this token.'}</p>
+          </div>
+          <a href="/" className="inline-block px-3.5 py-1.5 bg-zinc-900 text-white text-xs font-medium rounded">
+            Return to Dashboard
+          </a>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 py-12 px-4 flex flex-col items-center justify-center">
+    <div className="min-h-screen bg-[#FAFAFA] text-zinc-900 py-12 px-4 flex flex-col items-center justify-center select-none font-sans">
       
-      {/* Print Hide Controls */}
-      <div className="print:hidden w-full max-w-3xl mb-6 flex justify-between items-center bg-slate-900/80 backdrop-blur p-4 rounded-2xl border border-slate-800">
+      {/* Top Action Bar */}
+      <div className="print:hidden w-full max-w-3xl mb-6 flex justify-between items-center bg-white p-3.5 rounded border border-zinc-200 shadow-xs">
         <div className="flex items-center space-x-2">
-          <Award className="h-5 w-5 text-blue-400" />
-          <span className="font-bold text-sm text-white">Official Verification Report</span>
+          <ShieldCheck className="h-4 w-4 text-emerald-600" />
+          <span className="font-bold text-xs text-zinc-900 font-mono uppercase tracking-wider">Verified Candidate Record</span>
         </div>
         <button
           onClick={handlePrint}
-          className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-lg shadow-blue-600/20"
+          className="flex items-center space-x-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-medium px-3.5 py-1.5 rounded transition"
         >
-          <Printer className="h-4 w-4" />
+          <Printer className="h-3.5 w-3.5" />
           <span>Print / Export PDF</span>
         </button>
       </div>
 
-      {/* Certificate Container */}
-      <div className="w-full max-w-3xl bg-slate-900 border-2 border-slate-800 rounded-3xl p-8 sm:p-12 shadow-2xl relative overflow-hidden print:border-slate-300 print:bg-white print:text-black">
+      {/* Certificate Sheet */}
+      <div className="w-full max-w-3xl bg-white border border-zinc-200 rounded-md p-8 sm:p-12 shadow-sm relative print:border-none print:shadow-none space-y-8">
         
-        {/* Glowing Background Effect */}
-        <div className="absolute top-0 right-0 -mt-12 -mr-12 w-64 h-64 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-0 -mb-12 -ml-12 w-64 h-64 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
-
         {/* Certificate Header */}
-        <div className="text-center space-y-3 pb-8 border-b border-slate-800 print:border-slate-300">
-          <div className="inline-flex items-center space-x-2 bg-blue-500/10 border border-blue-500/20 px-3.5 py-1 rounded-full text-blue-400 text-xs font-semibold uppercase tracking-wider">
-            <ShieldCheck className="h-4 w-4" />
-            <span>TechScreen Pro Certified Audit</span>
+        <div className="text-center space-y-2.5 pb-6 border-b border-zinc-200">
+          <div className="inline-flex items-center space-x-1.5 bg-zinc-100 border border-zinc-200 px-2.5 py-0.5 rounded text-zinc-700 text-[10px] font-mono font-semibold uppercase tracking-wider">
+            <ShieldCheck className="h-3.5 w-3.5 text-blue-600" />
+            <span>TECHSCREEN ENTERPRISE AUDIT</span>
           </div>
-          <h1 className="text-3xl sm:text-4xl font-black text-white print:text-black tracking-tight">
-            Technical Screening Evaluation Report
+          <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 tracking-tight">
+            Technical Screening Assessment Report
           </h1>
-          <p className="text-xs text-slate-400 print:text-slate-600">Verified Skills Assessment & Proctoring Integrity Certificate</p>
+          <p className="text-xs text-zinc-500 font-mono">Proctored First-Round Competency Verification</p>
         </div>
 
-        {/* Candidate & Job Info */}
-        <div className="py-8 space-y-6">
+        {/* Candidate & Role Info */}
+        <div className="space-y-6">
           <div className="text-center space-y-1">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-widest">This certifies that</span>
-            <div className="text-2xl sm:text-3xl font-extrabold text-white print:text-black tracking-tight">
+            <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-400 block">Candidate Identity</span>
+            <div className="text-2xl sm:text-3xl font-bold text-zinc-900 tracking-tight">
               {resultData.candidateName}
             </div>
-            <p className="text-xs text-slate-400 print:text-slate-600">
-              has completed the technical screening process for <strong className="text-blue-400 print:text-slate-900 font-bold">{resultData.jobTitle}</strong>.
+            <p className="text-xs text-zinc-600">
+              has completed automated technical screening for position <strong className="text-zinc-900 font-semibold">{resultData.jobTitle}</strong>.
             </p>
           </div>
 
-          {/* Result Badge Card */}
-          <div className="bg-slate-950 print:bg-slate-100 p-6 rounded-2xl border border-slate-800 print:border-slate-300 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
-            <div className="space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Overall Score Percentage</span>
-              <div className="text-4xl font-black text-white print:text-black tracking-tight">
+          {/* Result Score Card */}
+          <div className="bg-zinc-50 p-6 rounded border border-zinc-200 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
+            <div className="space-y-0.5">
+              <span className="text-[10px] font-mono font-semibold uppercase tracking-wider text-zinc-500 block">Overall Technical Score</span>
+              <div className="text-4xl font-bold text-zinc-900 font-mono tracking-tight">
                 {resultData.scorePercentage}%
               </div>
             </div>
 
-            <div className="flex items-center space-x-3">
+            <div>
               {resultData.isPassed ? (
-                <div className="flex items-center space-x-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-4 py-2.5 rounded-xl font-bold text-sm">
-                  <CheckCircle2 className="h-5 w-5" />
-                  <span>QUALIFIED / PASSED</span>
+                <div className="flex items-center space-x-2 bg-emerald-50 text-emerald-800 border border-emerald-200 px-3.5 py-2 rounded font-mono text-xs font-bold">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  <span>QUALIFIED &bull; PASSED</span>
                 </div>
               ) : (
-                <div className="flex items-center space-x-2 bg-slate-800 text-slate-300 border border-slate-700 px-4 py-2.5 rounded-xl font-bold text-sm">
-                  <Clock className="h-5 w-5 text-indigo-400" />
-                  <span>EVALUATION COMPLETED</span>
+                <div className="flex items-center space-x-2 bg-zinc-100 text-zinc-700 border border-zinc-200 px-3.5 py-2 rounded font-mono text-xs font-bold">
+                  <Clock className="h-4 w-4 text-zinc-500" />
+                  <span>COMPLETED &bull; UNDER THRESHOLD</span>
                 </div>
               )}
             </div>
@@ -143,14 +143,14 @@ export const CandidateResultCertificate: React.FC<CandidateResultCertificateProp
         </div>
 
         {/* Footer Audit Details */}
-        <div className="pt-8 border-t border-slate-800 print:border-slate-300 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 print:text-slate-600 gap-4">
+        <div className="pt-6 border-t border-zinc-200 flex flex-col sm:flex-row items-center justify-between text-xs text-zinc-500 font-mono gap-3">
           <div className="space-y-0.5 text-center sm:text-left">
-            <div>Token ID: <span className="font-mono text-slate-300 print:text-slate-800">{token}</span></div>
-            <div>Issued Date: {new Date().toLocaleDateString()}</div>
+            <div>Token ID: <span className="text-zinc-800 font-semibold">{token}</span></div>
+            <div>Issued: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</div>
           </div>
 
-          <div className="flex items-center space-x-1.5 font-bold text-slate-300 print:text-slate-800">
-            <span>TechScreen Pro Platform Audit</span>
+          <div className="text-right text-[11px] text-zinc-400">
+            TechScreen Automated Proctoring Engine &bull; Integrity Verified
           </div>
         </div>
 
@@ -159,3 +159,4 @@ export const CandidateResultCertificate: React.FC<CandidateResultCertificateProp
     </div>
   );
 };
+

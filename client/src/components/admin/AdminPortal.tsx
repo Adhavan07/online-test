@@ -215,7 +215,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ initialTab = 'METRICS'
                     className="w-full bg-white border border-zinc-200 rounded px-3 py-1.5 text-zinc-900 focus:border-zinc-400"
                   >
                     <option value="">Select Section...</option>
-                    {templates.flatMap(t => t.sections.map((s: any) => (
+                    {templates.flatMap(t => (t.sections || []).map((s: any) => (
                       <option key={s.id} value={s.id}>{t.title} &rarr; {s.title}</option>
                     )))}
                   </select>
@@ -317,14 +317,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ initialTab = 'METRICS'
                 </div>
 
                 <div className="space-y-3 text-xs">
-                  {tmpl.sections.map((sec: any) => (
+                  {(tmpl.sections || []).map((sec: any) => (
                     <div key={sec.id} className="bg-zinc-50 p-3.5 rounded border border-zinc-200 space-y-2">
                       <div className="font-semibold text-zinc-800 flex justify-between font-mono">
                         <span>{sec.title}</span>
-                        <span className="text-zinc-500">{sec.questions.length} Questions</span>
+                        <span className="text-zinc-500">{sec.questions?.length || 0} Questions</span>
                       </div>
                       <div className="space-y-1 text-zinc-600">
-                        {sec.questions.map((q: any) => (
+                        {(sec.questions || []).map((q: any) => (
                           <div key={q.id} className="pl-2 border-l-2 border-zinc-300">
                             &bull; {q.prompt}
                           </div>
@@ -383,7 +383,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ initialTab = 'METRICS'
       <AiQuestionGeneratorModal
         isOpen={isAiModalOpen}
         onClose={() => setIsAiModalOpen(false)}
-        sections={templates.flatMap(t => t.sections.map((s: any) => ({ ...s, template: t })))}
+        sections={templates.flatMap(t => (t.sections || []).map((s: any) => ({ ...s, template: t })))}
         onSuccess={fetchData}
       />
 

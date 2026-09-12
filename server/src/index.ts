@@ -14,6 +14,7 @@ import { aiGeneratorRouter } from './routes/aiGenerator.js';
 import { interviewsRouter } from './routes/interviews.js';
 import { badgesRouter } from './routes/badges.js';
 import { webhooksRouter } from './routes/webhooks.js';
+import { notificationsRouter } from './routes/notifications.js';
 
 dotenv.config();
 
@@ -36,9 +37,11 @@ app.use('/api/assessment', assessmentRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/admin/ai-generator', aiGeneratorRouter);
+app.use('/api/ai', aiGeneratorRouter);
 app.use('/api/interviews', interviewsRouter);
 app.use('/api/badges', badgesRouter);
 app.use('/api/webhooks', webhooksRouter);
+app.use('/api/notifications', notificationsRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {

@@ -466,6 +466,10 @@ async function main() {
       token: 'arun-devops-token-778899',
       tokenExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       isOtpVerified: true,
+      resumeMatchScore: 92,
+      resumeParsedSkills: JSON.stringify(['Git', 'Linux', 'Docker', 'Kubernetes', 'CI/CD']),
+      rankingScore: 88.6,
+      recommendation: 'STRONG_CANDIDATE',
     },
   });
 
@@ -505,6 +509,8 @@ async function main() {
       questionOrderJson: JSON.stringify([]),
       isCompleted: true,
       integrityScore: 95,
+      proctoringRiskScore: 10,
+      proctoringRiskLevel: 'LOW',
       tabSwitchCount: 1,
       fullscreenViolationCount: 0,
     },
@@ -526,6 +532,10 @@ async function main() {
       maxScore: 15,
       percentage: 86.7,
       integrityScore: 95,
+      proctoringRiskScore: 10,
+      proctoringRiskLevel: 'LOW',
+      rankingScore: 88.6,
+      recommendation: 'STRONG_CANDIDATE',
       codingScore: 10,
       codingMaxScore: 10,
       sectionScoresJson: JSON.stringify({
@@ -557,10 +567,87 @@ async function main() {
       token: 'demo-test-token-priya-123456',
       tokenExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       isOtpVerified: false,
+      resumeMatchScore: 88,
+      resumeParsedSkills: JSON.stringify(['Git', 'Linux', 'Docker', 'AWS']),
     },
   });
 
-  // Candidate 3: Rahul Verma (Failed Assessment)
+  // Candidate 3: David Joseph (High Score 84% but High Proctoring Risk 78% -> MANUAL_REVIEW)
+  const candidateDavid = await prisma.candidate.create({
+    data: {
+      name: 'David Joseph',
+      email: 'david.joseph@example.com',
+      phone: '+91 97777 88899',
+      resumeUrl: '/uploads/resumes/david_joseph_devops.pdf',
+      resumeFileName: 'david_joseph_devops.pdf',
+    },
+  });
+
+  const appDavid = await prisma.jobApplication.create({
+    data: {
+      candidateId: candidateDavid.id,
+      jobId: devopsJob.id,
+      status: 'MANUAL_REVIEW',
+      token: 'david-test-token-889900',
+      tokenExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      isOtpVerified: true,
+      resumeMatchScore: 94,
+      resumeParsedSkills: JSON.stringify(['Git', 'Linux', 'Docker', 'Kubernetes', 'AWS', 'Terraform']),
+      rankingScore: 78.6,
+      recommendation: 'MANUAL_REVIEW',
+    },
+  });
+
+  const attemptDavid = await prisma.assessmentAttempt.create({
+    data: {
+      applicationId: appDavid.id,
+      templateId: devopsTemplate.id,
+      startedAt: new Date(Date.now() - 5400000),
+      submittedAt: new Date(Date.now() - 3600000),
+      currentQuestionIndex: 15,
+      questionOrderJson: JSON.stringify([]),
+      isCompleted: true,
+      integrityScore: 22,
+      proctoringRiskScore: 78,
+      proctoringRiskLevel: 'HIGH',
+      tabSwitchCount: 5,
+      fullscreenViolationCount: 2,
+      screenShareStopCount: 1,
+    },
+  });
+
+  await prisma.proctoringLog.createMany({
+    data: [
+      { attemptId: attemptDavid.id, eventType: 'FOCUS_LOST', details: 'Browser tab switched away (duration 18s)', timestamp: new Date(Date.now() - 5000000) },
+      { attemptId: attemptDavid.id, eventType: 'FOCUS_LOST', details: 'Browser tab switched away (duration 24s)', timestamp: new Date(Date.now() - 4700000) },
+      { attemptId: attemptDavid.id, eventType: 'FULLSCREEN_EXIT', details: 'Candidate exited fullscreen mode', timestamp: new Date(Date.now() - 4500000) },
+      { attemptId: attemptDavid.id, eventType: 'SCREEN_SHARE_STOPPED', details: 'Screen sharing stream was halted by candidate', timestamp: new Date(Date.now() - 4200000) },
+      { attemptId: attemptDavid.id, eventType: 'FOCUS_LOST', details: 'Window blur event recorded', timestamp: new Date(Date.now() - 4000000) },
+      { attemptId: attemptDavid.id, eventType: 'FULLSCREEN_EXIT', details: 'Candidate exited fullscreen mode again', timestamp: new Date(Date.now() - 3800000) },
+    ],
+  });
+
+  await prisma.assessmentResult.create({
+    data: {
+      attemptId: attemptDavid.id,
+      totalScore: 12.6,
+      maxScore: 15,
+      percentage: 84.0,
+      integrityScore: 22,
+      proctoringRiskScore: 78,
+      proctoringRiskLevel: 'HIGH',
+      rankingScore: 78.6,
+      recommendation: 'MANUAL_REVIEW',
+      sectionScoresJson: JSON.stringify({
+        'Git Version Control': { score: 4, max: 5 },
+        'Linux Systems Administration': { score: 4, max: 5 },
+        'Docker & CI/CD Pipelines': { score: 4, max: 5 },
+      }),
+      isPassed: true,
+    },
+  });
+
+  // Candidate 4: Rahul Verma (Failed Assessment)
   const candidateRahul = await prisma.candidate.create({
     data: {
       name: 'Rahul Verma',
@@ -579,6 +666,9 @@ async function main() {
       token: 'rahul-test-token-445566',
       tokenExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       isOtpVerified: true,
+      resumeMatchScore: 65,
+      rankingScore: 51.5,
+      recommendation: 'REJECT',
     },
   });
 
@@ -592,6 +682,8 @@ async function main() {
       questionOrderJson: JSON.stringify([]),
       isCompleted: true,
       integrityScore: 60,
+      proctoringRiskScore: 40,
+      proctoringRiskLevel: 'MEDIUM',
       tabSwitchCount: 4,
       fullscreenViolationCount: 2,
     },
@@ -612,12 +704,65 @@ async function main() {
       totalScore: 8,
       maxScore: 15,
       percentage: 53.3,
+      integrityScore: 60,
+      proctoringRiskScore: 40,
+      proctoringRiskLevel: 'MEDIUM',
+      rankingScore: 51.5,
+      recommendation: 'REJECT',
       sectionScoresJson: JSON.stringify({
         'Git Version Control': { score: 3, max: 5 },
         'Linux Systems Administration': { score: 3, max: 5 },
         'Docker & CI/CD Pipelines': { score: 2, max: 5 },
       }),
       isPassed: false,
+    },
+  });
+
+  // Candidate 5: Ananya Roy (Fresh Test - Not Started)
+  const candidateAnanya = await prisma.candidate.create({
+    data: {
+      name: 'Ananya Roy',
+      email: 'ananya.roy@example.com',
+      phone: '+91 98450 11223',
+      resumeUrl: '/uploads/resumes/ananya_roy_resume.pdf',
+      resumeFileName: 'ananya_roy_resume.pdf',
+    },
+  });
+
+  await prisma.jobApplication.create({
+    data: {
+      candidateId: candidateAnanya.id,
+      jobId: devopsJob.id,
+      status: 'INVITED',
+      token: 'cand-ejd0a2vdf-mtn7f6sj',
+      tokenExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      isOtpVerified: false,
+      resumeMatchScore: 85,
+      resumeParsedSkills: JSON.stringify(['Git', 'Linux', 'Docker', 'CI/CD']),
+    },
+  });
+
+  // Candidate 6: Vikram Singh (Fresh Test - Not Started)
+  const candidateVikram = await prisma.candidate.create({
+    data: {
+      name: 'Vikram Singh',
+      email: 'vikram.singh@example.com',
+      phone: '+91 99000 44332',
+      resumeUrl: '/uploads/resumes/vikram_singh_resume.pdf',
+      resumeFileName: 'vikram_singh_resume.pdf',
+    },
+  });
+
+  await prisma.jobApplication.create({
+    data: {
+      candidateId: candidateVikram.id,
+      jobId: devopsJob.id,
+      status: 'INVITED',
+      token: 'cand-syvu4v225-mtn7f6tl',
+      tokenExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      isOtpVerified: false,
+      resumeMatchScore: 80,
+      resumeParsedSkills: JSON.stringify(['Linux', 'Docker', 'Kubernetes']),
     },
   });
 
@@ -639,6 +784,16 @@ async function main() {
       action: 'CANDIDATE_SHORTLISTED',
       entity: 'JobApplication',
       details: 'Moved candidate Arun Kumar to HR Interview stage.',
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      userId: recruiterUser.id,
+      userName: recruiterUser.name,
+      action: 'CANDIDATE_FLAGGED_REVIEW',
+      entity: 'JobApplication',
+      details: 'Candidate David Joseph scored 84% but flagged for MANUAL REVIEW due to High Proctoring Risk (78 pts).',
     },
   });
 

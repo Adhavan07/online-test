@@ -91,10 +91,10 @@ assessmentRouter.post('/submit-answer', async (req, res) => {
  * Live Run Code Test Preview
  */
 assessmentRouter.post('/run-code', async (req, res) => {
-  const { questionId, code, testCases } = req.body;
+  const { questionId, code, testCases, language } = req.body;
   try {
     const testCasesJson = testCases ? JSON.stringify(testCases) : undefined;
-    const evalResult = await AssessmentEngine.runCodeTest(questionId, code, testCasesJson);
+    const evalResult = await AssessmentEngine.runCodeTest(questionId, code, testCasesJson, language);
     res.json({ success: true, evalResult });
   } catch (err: any) {
     res.status(400).json({ success: false, error: err.message });
@@ -127,9 +127,57 @@ assessmentRouter.post('/proctor-event', async (req, res) => {
         where: { id: attemptId },
         data: { fullscreenViolationCount: { increment: 1 } }
       });
+    } else if (eventType === 'SCREEN_SHARE_STOPPED') {
+      await prisma.assessmentAttempt.update({
+        where: { id: attemptId },
+        data: { screenShareStopCount: { increment: 1 } }
+      });
+    } else if (eventType === 'CAMERA_DISABLED') {
+      await prisma.assessmentAttempt.update({
+        where: { id: attemptId },
+        data: { cameraDisconnectCount: { increment: 1 } }
+      });
     }
 
     res.json({ success: true, log });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * Capture & Archive Periodic Proctoring Webcam Snapshot
+ */
+assessmentRouter.post('/proctor-snapshot', async (req, res) => {
+  const { attemptId, imageBase64, eventType, details } = req.body;
+  try {
+    if (!attemptId || !imageBase64) {
+      return res.status(400).json({ success: false, error: 'attemptId and imageBase64 are required.' });
+    }
+
+    const { prisma } = await import('../lib/prisma.js');
+    const { storageService } = await import('../services/StorageService.js');
+
+    // Strip header if data URL format (e.g. data:image/jpeg;base64,...)
+    const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+    const buffer = Buffer.from(base64Data, 'base64');
+    const filename = `snapshot-${attemptId.substring(0, 8)}-${Date.now()}.jpg`;
+
+    const stored = await storageService.saveBuffer(buffer, filename, 'proctoring');
+
+    const log = await prisma.proctoringLog.create({
+      data: {
+        attemptId,
+        eventType: eventType || 'WEBCAM_SNAPSHOT',
+        details: JSON.stringify({
+          snapshotUrl: stored.publicUrl,
+          reason: details || 'Periodic proctoring verification',
+          sizeBytes: stored.sizeBytes,
+        }),
+      }
+    });
+
+    res.json({ success: true, log, snapshotUrl: stored.publicUrl });
   } catch (err: any) {
     res.status(400).json({ success: false, error: err.message });
   }
@@ -141,8 +189,9 @@ assessmentRouter.post('/proctor-event', async (req, res) => {
 assessmentRouter.post('/finish', async (req, res) => {
   const { attemptId } = req.body;
   try {
-    const result = await AssessmentEngine.evaluateAssessment(attemptId);
-    res.json({ success: true, result });
+    const evalRes = await AssessmentEngine.evaluateAssessment(attemptId);
+    const finalResult = (evalRes as any).result || evalRes;
+    res.json({ success: true, isCompleted: true, result: finalResult });
   } catch (err: any) {
     res.status(400).json({ success: false, error: err.message });
   }

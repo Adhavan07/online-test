@@ -3,7 +3,10 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { prisma } from '../lib/prisma.js';
+import { ResumeMatchingService } from '../services/ResumeMatchingService.js';
 import { EmailService } from '../services/EmailService.js';
+import { NotificationService } from '../services/NotificationService.js';
+import { storageService } from '../services/StorageService.js';
 
 export const candidatesRouter = Router();
 
@@ -72,11 +75,80 @@ candidatesRouter.get('/', async (req, res) => {
       orderBy: { createdAt: 'desc' }
     });
 
-    const formatted = applications.map(app => {
+    const formatted = await Promise.all(applications.map(async (app) => {
       const latestAttempt = app.attempts[0];
       const result = latestAttempt?.result;
 
+      // Extract skills & match if not yet saved
+      let jobSkills: string[] = [];
+      try {
+        jobSkills = JSON.parse(app.job.skillsRequired || '[]');
+      } catch {
+        jobSkills = ['Git', 'Linux', 'Docker', 'Kubernetes', 'CI/CD'];
+      }
+
+      let resumeMatchScore = app.resumeMatchScore;
+      let matchedSkills: string[] = [];
+      if (app.resumeParsedSkills) {
+        try {
+          matchedSkills = JSON.parse(app.resumeParsedSkills);
+        } catch {}
+      }
+
+      if ((resumeMatchScore === null || resumeMatchScore === undefined || resumeMatchScore === 0) && app.candidate.resumeUrl) {
+        const fullPath = storageService.resolveLocalPath(app.candidate.resumeUrl);
+        if (fs.existsSync(fullPath)) {
+          try {
+            const evalRes = await ResumeMatchingService.parseAndEvaluateResumeFile(
+              fullPath,
+              jobSkills,
+              app.candidate.name
+            );
+            if (evalRes.matchScore > 0 || evalRes.matchedSkills.length > 0) {
+              resumeMatchScore = evalRes.matchScore;
+              matchedSkills = evalRes.matchedSkills;
+              await prisma.jobApplication.update({
+                where: { id: app.id },
+                data: {
+                  resumeMatchScore: evalRes.matchScore,
+                  resumeParsedSkills: JSON.stringify(evalRes.matchedSkills),
+                }
+              }).catch(() => {});
+            }
+          } catch {}
+        }
+      }
+
+      if (resumeMatchScore === null || resumeMatchScore === undefined) {
+        const evalRes = ResumeMatchingService.evaluateResumeMatch(
+          `${app.candidate.name} ${app.candidate.resumeFileName || ''}`,
+          jobSkills
+        );
+        resumeMatchScore = evalRes.matchScore;
+        matchedSkills = evalRes.matchedSkills;
+      }
+
+      const techScore = result ? Math.round(result.percentage) : null;
+      const riskScore = latestAttempt?.proctoringRiskScore ?? (latestAttempt ? Math.max(0, 100 - latestAttempt.integrityScore) : 0);
+      const riskLevel = latestAttempt?.proctoringRiskLevel || (riskScore >= 61 ? 'HIGH' : riskScore >= 31 ? 'MEDIUM' : 'LOW');
+
+      let rankingScore = app.rankingScore;
+      let recommendation = app.recommendation;
+
+      if (rankingScore === null || rankingScore === undefined) {
+        const rank = ResumeMatchingService.calculateCandidateRanking({
+          technicalScore: techScore,
+          resumeMatchScore: resumeMatchScore ?? 0,
+          proctoringRiskScore: riskScore,
+          passThreshold: app.job.passThreshold,
+          currentStatus: app.status,
+        });
+        rankingScore = rank.rankingScore;
+        recommendation = rank.recommendation;
+      }
+
       return {
+        id: app.id,
         applicationId: app.id,
         candidateId: app.candidate.id,
         name: app.candidate.name,
@@ -89,11 +161,45 @@ candidatesRouter.get('/', async (req, res) => {
         status: app.status,
         token: app.token,
         tokenExpiresAt: app.tokenExpiresAt,
-        scorePercentage: result ? result.percentage : null,
+        scorePercentage: techScore,
         isPassed: result ? result.isPassed : null,
+        proctoringRisk: riskLevel,
+        proctoringRiskScore: riskScore,
+        resumeMatchScore: resumeMatchScore !== null && resumeMatchScore !== undefined ? Math.round(resumeMatchScore) : null,
+        matchedSkills,
+        rankingScore: rankingScore !== null && rankingScore !== undefined ? Math.round(rankingScore * 10) / 10 : null,
+        recommendation,
+        createdAt: app.createdAt,
         appliedAt: app.createdAt,
+        job: {
+          id: app.job.id,
+          title: app.job.title,
+          location: app.job.location,
+          experienceRange: app.job.experienceRange,
+          passThreshold: app.job.passThreshold,
+          skillsRequired: jobSkills,
+        },
+        attempts: app.attempts.map(att => ({
+          id: att.id,
+          integrityScore: att.integrityScore,
+          proctoringRiskScore: att.proctoringRiskScore,
+          proctoringRiskLevel: att.proctoringRiskLevel,
+          tabSwitchCount: att.tabSwitchCount,
+          fullscreenViolationCount: att.fullscreenViolationCount,
+          screenShareStopCount: att.screenShareStopCount,
+          cameraDisconnectCount: att.cameraDisconnectCount,
+          result: att.result ? {
+            score: att.result.totalScore,
+            totalPossible: att.result.maxScore,
+            percentage: Math.round(att.result.percentage),
+            isPassed: att.result.isPassed,
+            integrityScore: att.result.integrityScore,
+            proctoringRiskLevel: att.result.proctoringRiskLevel || (att.result.integrityScore < 60 ? 'HIGH' : att.result.integrityScore < 85 ? 'MEDIUM' : 'LOW'),
+            proctoringRiskScore: att.result.proctoringRiskScore,
+          } : null,
+        }))
       };
-    });
+    }));
 
     res.json({ success: true, candidates: formatted });
   } catch (err: any) {
@@ -197,6 +303,84 @@ candidatesRouter.get('/detail/:applicationId', async (req, res) => {
         },
         status: application.status,
         token: application.token,
+        resumeMatch: await (async () => {
+          let jobSkills: string[] = [];
+          try {
+            jobSkills = JSON.parse(application.job.skillsRequired || '[]');
+          } catch {
+            jobSkills = ['Git', 'Linux', 'Docker', 'Kubernetes', 'CI/CD'];
+          }
+
+          let matchedSkills: string[] = [];
+          let candidateSkills: string[] = [];
+          let matchScore = application.resumeMatchScore;
+          let experienceYears: number | null = null;
+
+          if (application.resumeParsedSkills) {
+            try { matchedSkills = JSON.parse(application.resumeParsedSkills); } catch {}
+          }
+
+          // If resume file exists on disk, deeply parse for full extracted details
+          if (application.candidate.resumeUrl) {
+            const fullPath = path.join(process.cwd(), application.candidate.resumeUrl.replace(/^\//, ''));
+            if (fs.existsSync(fullPath)) {
+              try {
+                const evalRes = await ResumeMatchingService.parseAndEvaluateResumeFile(
+                  fullPath,
+                  jobSkills,
+                  application.candidate.name
+                );
+                matchScore = evalRes.matchScore;
+                matchedSkills = evalRes.matchedSkills;
+                candidateSkills = evalRes.candidateSkills;
+                experienceYears = evalRes.experienceYears ?? null;
+
+                if (application.resumeMatchScore !== evalRes.matchScore) {
+                  await prisma.jobApplication.update({
+                    where: { id: application.id },
+                    data: {
+                      resumeMatchScore: evalRes.matchScore,
+                      resumeParsedSkills: JSON.stringify(evalRes.matchedSkills),
+                    }
+                  });
+                }
+              } catch {}
+            }
+          }
+
+          if (matchScore === null || matchScore === undefined) {
+            const evalRes = ResumeMatchingService.evaluateResumeMatch(
+              `${application.candidate.name} ${application.candidate.resumeFileName || ''}`,
+              jobSkills
+            );
+            matchScore = evalRes.matchScore;
+            matchedSkills = evalRes.matchedSkills;
+            candidateSkills = evalRes.candidateSkills;
+          }
+
+          const missingSkills = jobSkills.filter(js => !matchedSkills.some(ms => ms.toLowerCase() === js.toLowerCase()));
+          const riskScore = latestAttempt?.proctoringRiskScore ?? (latestAttempt ? Math.max(0, 100 - latestAttempt.integrityScore) : 0);
+          const techScore = result ? Math.round(result.percentage) : null;
+          const rank = ResumeMatchingService.calculateCandidateRanking({
+            technicalScore: techScore,
+            resumeMatchScore: matchScore ?? 0,
+            proctoringRiskScore: riskScore,
+            passThreshold: application.job.passThreshold,
+            currentStatus: application.status,
+          });
+
+          return {
+            matchScore: matchScore ?? 0,
+            matchedSkills,
+            missingSkills,
+            candidateSkills,
+            experienceYears,
+            rankingScore: application.rankingScore ?? rank.rankingScore,
+            recommendation: application.recommendation ?? rank.recommendation,
+            recommendationLabel: rank.recommendationLabel,
+          };
+        })(),
+        proctorLogs: latestAttempt ? latestAttempt.proctoringLogs : [],
         assessmentSummary: latestAttempt ? {
           attemptId: latestAttempt.id,
           startedAt: latestAttempt.startedAt,
@@ -205,14 +389,29 @@ candidatesRouter.get('/detail/:applicationId', async (req, res) => {
             ? Math.round((new Date(latestAttempt.submittedAt).getTime() - new Date(latestAttempt.startedAt).getTime()) / 60000)
             : null,
           totalScore: result?.totalScore ?? null,
+          score: result?.totalScore ?? null,
           maxScore: result?.maxScore ?? null,
+          totalPossible: result?.maxScore ?? null,
           percentage: result?.percentage ?? null,
+          scorePercentage: result?.percentage ?? null,
           integrityScore: latestAttempt.integrityScore,
+          proctoringRiskScore: latestAttempt.proctoringRiskScore ?? Math.max(0, 100 - latestAttempt.integrityScore),
           tabSwitchCount: latestAttempt.tabSwitchCount,
           fullscreenViolationCount: latestAttempt.fullscreenViolationCount,
+          screenShareStopCount: latestAttempt.screenShareStopCount,
+          cameraDisconnectCount: latestAttempt.cameraDisconnectCount,
           isPassed: result?.isPassed ?? null,
+          passed: result?.isPassed ?? null,
+          riskLevel: latestAttempt.proctoringRiskLevel || (latestAttempt.integrityScore < 60 ? 'HIGH' : latestAttempt.integrityScore < 85 ? 'MEDIUM' : 'LOW'),
           sectionScores,
+          sectionResults: Object.entries(sectionScores).map(([title, val]: [string, any]) => ({
+            title,
+            correct: val.score,
+            total: val.max,
+            percentage: Math.round(((val.score || 0) / (val.max || 1)) * 100),
+          })),
           proctoringLogs: latestAttempt.proctoringLogs,
+          proctorLogs: latestAttempt.proctoringLogs,
           codeSubmissions,
         } : null,
         timeline,
@@ -280,6 +479,17 @@ candidatesRouter.post('/apply', upload.single('resume'), async (req, res) => {
 
     // Send invitation email
     await EmailService.sendInvitation(candidate.name, candidate.email, job.title, token, baseUrl);
+
+    // Dispatch in-app notification
+    await NotificationService.createNotification({
+      type: 'INVITATION_SENT',
+      title: 'Assessment Invitation Dispatched',
+      message: `Invitation sent to ${candidate.name} (${candidate.email}) for ${job.title}`,
+      candidateName: candidate.name,
+      candidateId: candidate.id,
+      jobTitle: job.title,
+      link: `/assessment/${token}`,
+    });
 
     res.json({
       success: true,
@@ -431,6 +641,41 @@ candidatesRouter.patch('/:applicationId/status', async (req, res) => {
       }
     });
 
+    // If candidate status is updated to REJECTED, dispatch polite rejection email
+    if (status === 'REJECTED') {
+      await EmailService.sendRejectionEmail(
+        application.candidate.name,
+        application.candidate.email,
+        application.job.title
+      );
+      await NotificationService.createNotification({
+        type: 'TEST_FAILED',
+        title: 'Candidate Application Rejected',
+        message: `${application.candidate.name} was rejected for ${application.job.title}. Polite notification email sent.`,
+        candidateName: application.candidate.name,
+        candidateId: application.candidate.id,
+        jobTitle: application.job.title,
+      });
+    } else if (status === 'SHORTLISTED') {
+      await NotificationService.createNotification({
+        type: 'TEST_PASSED',
+        title: 'Candidate Shortlisted',
+        message: `${application.candidate.name} has been shortlisted for ${application.job.title}.`,
+        candidateName: application.candidate.name,
+        candidateId: application.candidate.id,
+        jobTitle: application.job.title,
+      });
+    } else if (status === 'HR_INTERVIEW') {
+      await NotificationService.createNotification({
+        type: 'INTERVIEW_SCHEDULED',
+        title: 'Moved to HR Interview',
+        message: `${application.candidate.name} advanced to HR Interview for ${application.job.title}.`,
+        candidateName: application.candidate.name,
+        candidateId: application.candidate.id,
+        jobTitle: application.job.title,
+      });
+    }
+
     res.json({ success: true, application });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -463,6 +708,86 @@ candidatesRouter.post('/:applicationId/resend-invite', async (req, res) => {
     );
 
     res.json({ success: true, message: `Invitation email resent to ${application.candidate.email}` });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * Recruiter Action: Re-parse uploaded PDF resume and re-evaluate skill match
+ */
+candidatesRouter.post('/:applicationId/reparse-resume', async (req, res) => {
+  const { applicationId } = req.params;
+
+  try {
+    const application = await prisma.jobApplication.findUnique({
+      where: { id: applicationId },
+      include: {
+        candidate: true,
+        job: true,
+        attempts: {
+          include: { result: true },
+          orderBy: { startedAt: 'desc' },
+          take: 1,
+        }
+      }
+    });
+
+    if (!application) return res.status(404).json({ success: false, error: 'Application not found' });
+    if (!application.candidate.resumeUrl) {
+      return res.status(400).json({ success: false, error: 'Candidate has no uploaded resume file.' });
+    }
+
+    let jobSkills: string[] = [];
+    try {
+      jobSkills = JSON.parse(application.job.skillsRequired || '[]');
+    } catch {
+      jobSkills = ['Git', 'Linux', 'Docker', 'Kubernetes', 'CI/CD'];
+    }
+
+    const fullPath = storageService.resolveLocalPath(application.candidate.resumeUrl);
+    const evalRes = await ResumeMatchingService.parseAndEvaluateResumeFile(
+      fullPath,
+      jobSkills,
+      application.candidate.name
+    );
+
+    const latestAttempt = application.attempts[0];
+    const techScore = latestAttempt?.result ? Math.round(latestAttempt.result.percentage) : null;
+    const riskScore = latestAttempt?.proctoringRiskScore ?? (latestAttempt ? Math.max(0, 100 - latestAttempt.integrityScore) : 0);
+
+    const ranking = ResumeMatchingService.calculateCandidateRanking({
+      technicalScore: techScore,
+      resumeMatchScore: evalRes.matchScore,
+      proctoringRiskScore: riskScore,
+      passThreshold: application.job.passThreshold,
+      currentStatus: application.status,
+    });
+
+    const updated = await prisma.jobApplication.update({
+      where: { id: applicationId },
+      data: {
+        resumeMatchScore: evalRes.matchScore,
+        resumeParsedSkills: JSON.stringify(evalRes.matchedSkills),
+        rankingScore: ranking.rankingScore,
+        recommendation: ranking.recommendation,
+      },
+      include: { candidate: true, job: true }
+    });
+
+    res.json({
+      success: true,
+      message: `Resume parsed successfully! Match score: ${evalRes.matchScore}%`,
+      matchScore: evalRes.matchScore,
+      matchedSkills: evalRes.matchedSkills,
+      missingSkills: evalRes.missingSkills,
+      allExtractedSkills: evalRes.candidateSkills,
+      experienceYears: evalRes.experienceYears,
+      rankingScore: ranking.rankingScore,
+      recommendation: ranking.recommendation,
+      recommendationLabel: ranking.recommendationLabel,
+      application: updated,
+    });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -586,22 +911,32 @@ candidatesRouter.post('/:applicationId/schedule-interview', async (req, res) => 
       include: { candidate: true, job: true }
     });
 
-    const inviteContent = `Hi ${application.candidate.name},\n\nCongratulations! Based on your technical assessment score, you have been shortlisted for an HR Interview for the position of ${application.job.title}.\n\nScheduled Date/Time: ${new Date(interviewScheduledAt).toLocaleString()}\nMeeting Link: ${application.interviewLink}\n\nBest regards,\nTechScreen Pro Hiring Team`;
+    const scheduledDateStr = new Date(interviewScheduledAt).toLocaleString();
+    const meetingUrl = application.interviewLink || 'https://meet.google.com/techscreen-hr-interview';
 
-    await prisma.emailLog.create({
-      data: {
-        recipientEmail: application.candidate.email,
-        subject: `HR Interview Invitation - ${application.job.title}`,
-        type: 'INVITATION',
-        content: inviteContent,
-      }
+    // Dispatch real email via EmailService
+    await EmailService.sendInterviewInvite(
+      application.candidate.name,
+      application.candidate.email,
+      application.job.title,
+      scheduledDateStr,
+      meetingUrl
+    );
+
+    await NotificationService.createNotification({
+      type: 'INTERVIEW_SCHEDULED',
+      title: '📅 HR Interview Scheduled',
+      message: `Interview with ${application.candidate.name} scheduled for ${scheduledDateStr}`,
+      candidateName: application.candidate.name,
+      candidateId: application.candidate.id,
+      jobTitle: application.job.title,
     });
 
     await prisma.auditLog.create({
       data: {
         action: 'HR_INTERVIEW_SCHEDULED',
         entity: 'JobApplication',
-        details: `Scheduled HR interview for candidate ${application.candidate.name} on ${new Date(interviewScheduledAt).toLocaleString()}`,
+        details: `Scheduled HR interview for candidate ${application.candidate.name} on ${scheduledDateStr}`,
       }
     });
 

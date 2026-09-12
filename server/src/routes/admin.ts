@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
+import { EmailService } from '../services/EmailService.js';
 
 export const adminRouter = Router();
 
@@ -150,3 +151,77 @@ adminRouter.get('/email-logs', async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
+/**
+ * Get Current SMTP Configuration
+ */
+adminRouter.get('/smtp-config', async (req, res) => {
+  try {
+    const config = await EmailService.getSmtpConfig();
+    res.json({ success: true, config });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * Save SMTP Configuration dynamically
+ */
+adminRouter.post('/smtp-config', async (req, res) => {
+  try {
+    const { host, port, user, pass, from, secure, service } = req.body;
+    const result = await EmailService.saveSmtpConfig({
+      host,
+      port: port ? Number(port) : undefined,
+      user,
+      pass,
+      from,
+      secure: secure !== undefined ? Boolean(secure) : undefined,
+      service,
+    });
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * Send Live Test Email to verify SMTP setup
+ */
+adminRouter.post('/test-email', async (req, res) => {
+  try {
+    const { recipientEmail } = req.body;
+    if (!recipientEmail) {
+      return res.status(400).json({ success: false, error: 'Recipient email is required' });
+    }
+
+    const result = await EmailService.sendTestEmail(recipientEmail);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * Resend Email from Log
+ */
+adminRouter.post('/email-logs/:id/resend', async (req, res) => {
+  try {
+    const log = await prisma.emailLog.findUnique({ where: { id: req.params.id } });
+    if (!log) {
+      return res.status(404).json({ success: false, error: 'Email log not found' });
+    }
+
+    const result = await EmailService.sendEmail({
+      recipientEmail: log.recipientEmail,
+      subject: log.subject,
+      type: log.type as any,
+      content: log.content,
+    });
+
+    res.json({ success: true, result });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+

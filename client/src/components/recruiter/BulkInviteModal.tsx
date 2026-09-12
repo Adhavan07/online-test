@@ -8,6 +8,7 @@ interface Job {
 }
 
 interface BulkInviteModalProps {
+  isOpen?: boolean;
   jobs: Job[];
   onClose: () => void;
   onSuccess: () => void;
@@ -19,7 +20,9 @@ interface CandidateRow {
   phone?: string;
 }
 
-export const BulkInviteModal: React.FC<BulkInviteModalProps> = ({ jobs, onClose, onSuccess }) => {
+export const BulkInviteModal: React.FC<BulkInviteModalProps> = ({ isOpen = true, jobs, onClose, onSuccess }) => {
+  if (!isOpen) return null;
+
   const [selectedJobId, setSelectedJobId] = useState<string>(jobs[0]?.id || '');
   const [csvText, setCsvText] = useState<string>(
     'Ananya Roy, ananya.roy@example.com, +91 99887 66554\nVikram Singh, vikram.singh@example.com, +91 98765 11223\nMeera Nair, meera.nair@example.com, +91 91122 33445'
@@ -28,6 +31,12 @@ export const BulkInviteModal: React.FC<BulkInviteModalProps> = ({ jobs, onClose,
   const [loading, setLoading] = useState<boolean>(false);
   const [resultMsg, setResultMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!selectedJobId && jobs.length > 0) {
+      setSelectedJobId(jobs[0].id);
+    }
+  }, [jobs, selectedJobId]);
 
   const parseCsv = (text: string): CandidateRow[] => {
     const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
@@ -59,7 +68,8 @@ export const BulkInviteModal: React.FC<BulkInviteModalProps> = ({ jobs, onClose,
 
   const handleSendBulkInvites = async () => {
     const candidatesToInvite = parsedCandidates.length > 0 ? parsedCandidates : parseCsv(csvText);
-    if (!selectedJobId) {
+    const targetJobId = selectedJobId || jobs[0]?.id;
+    if (!targetJobId) {
       setErrorMsg('Please select a target job opening.');
       return;
     }
@@ -74,7 +84,7 @@ export const BulkInviteModal: React.FC<BulkInviteModalProps> = ({ jobs, onClose,
       const res = await fetch('/api/candidates/bulk-invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobId: selectedJobId, candidates: candidatesToInvite })
+        body: JSON.stringify({ jobId: targetJobId, candidates: candidatesToInvite })
       });
       const data = await res.json();
       if (data.success) {

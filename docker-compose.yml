@@ -1,0 +1,60 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: techscreen-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: techscreen_pro
+    ports:
+      - "5432:5432"
+    volumes:
+      - techscreen_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d techscreen_pro"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: techscreen-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - techscreen_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: techscreen-app
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      DATABASE_URL: postgresql://postgres:postgrespassword@postgres:5432/techscreen_pro?schema=public
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: techscreen-enterprise-secret-change-in-prod-2026
+      STORAGE_DRIVER: local
+    volumes:
+      - techscreen_uploads:/app/uploads
+
+volumes:
+  techscreen_pgdata:
+  techscreen_redisdata:
+  techscreen_uploads:

@@ -19,15 +19,22 @@ export const InviteCandidateModal: React.FC<InviteCandidateModalProps> = ({
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [jobId, setJobId] = useState('');
+  const [jobId, setJobId] = useState(jobs[0]?.id || '');
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+
+  React.useEffect(() => {
+    if (!jobId && jobs.length > 0) {
+      setJobId(jobs[0].id);
+    }
+  }, [jobs, jobId]);
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!jobId) {
+    const targetJobId = jobId || jobs[0]?.id;
+    if (!targetJobId) {
       alert('Please select a target job opening.');
       return;
     }
@@ -38,7 +45,7 @@ export const InviteCandidateModal: React.FC<InviteCandidateModalProps> = ({
       formData.append('name', name);
       formData.append('email', email);
       formData.append('phone', phone);
-      formData.append('jobId', jobId);
+      formData.append('jobId', targetJobId);
       if (resumeFile) {
         formData.append('resume', resumeFile);
       }
