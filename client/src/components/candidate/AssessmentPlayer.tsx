@@ -5,12 +5,14 @@ import { CodeEditorWidget } from './CodeEditorWidget';
 interface AssessmentPlayerProps {
   attemptId: string;
   jobTitle: string;
+  token?: string;
   onAssessmentFinish: (result: any) => void;
 }
 
 export const AssessmentPlayer: React.FC<AssessmentPlayerProps> = ({
   attemptId,
   jobTitle,
+  token,
   onAssessmentFinish,
 }) => {
   const [currentData, setCurrentData] = useState<any>(null);
@@ -71,12 +73,16 @@ export const AssessmentPlayer: React.FC<AssessmentPlayerProps> = ({
     try {
       await fetch('/api/assessment/proctor-snapshot', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'x-assessment-token': token } : {}),
+        },
         body: JSON.stringify({
           attemptId,
           imageBase64,
           eventType: 'WEBCAM_SNAPSHOT',
           details: reason,
+          token,
         })
       });
     } catch (err) {
@@ -90,7 +96,7 @@ export const AssessmentPlayer: React.FC<AssessmentPlayerProps> = ({
       captureWebcamSnapshot('Periodic 45s interval frame');
     }, 45000);
     return () => clearInterval(interval);
-  }, [attemptId]);
+  }, [attemptId, token]);
 
   useEffect(() => {
     selectedOptionIdsRef.current = selectedOptionIds;
@@ -115,8 +121,11 @@ export const AssessmentPlayer: React.FC<AssessmentPlayerProps> = ({
       setRecentViolationMsg(`Warning: ${details}`);
       await fetch('/api/assessment/proctor-event', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ attemptId, eventType, details })
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'x-assessment-token': token } : {}),
+        },
+        body: JSON.stringify({ attemptId, eventType, details, token })
       });
       setTimeout(() => setRecentViolationMsg(null), 6000);
     } catch (err) {
@@ -190,8 +199,14 @@ export const AssessmentPlayer: React.FC<AssessmentPlayerProps> = ({
   const fetchQuestion = async (index?: number) => {
     setLoading(true);
     try {
-      const url = index !== undefined ? `/api/assessment/question/${attemptId}?index=${index}` : `/api/assessment/question/${attemptId}`;
-      const res = await fetch(url);
+      const url = index !== undefined
+        ? `/api/assessment/question/${attemptId}?index=${index}${token ? `&token=${encodeURIComponent(token)}` : ''}`
+        : `/api/assessment/question/${attemptId}${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+      const res = await fetch(url, {
+        headers: {
+          ...(token ? { 'x-assessment-token': token } : {}),
+        }
+      });
       const json = await res.json();
 
       if (json.success) {
@@ -220,7 +235,7 @@ export const AssessmentPlayer: React.FC<AssessmentPlayerProps> = ({
 
   useEffect(() => {
     fetchQuestion();
-  }, [attemptId]);
+  }, [attemptId, token]);
 
   // Timer per question countdown loop (paused if screen share stops)
   useEffect(() => {
@@ -254,13 +269,17 @@ export const AssessmentPlayer: React.FC<AssessmentPlayerProps> = ({
     try {
       const res = await fetch('/api/assessment/submit-answer', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'x-assessment-token': token } : {}),
+        },
         body: JSON.stringify({
           attemptId,
           questionId: currentData.question.id,
           selectedOptionIds: selectedOptionIdsRef.current,
           codeAnswer: currentData.question.type === 'CODING' ? codeAnswerRef.current : undefined,
           timeSpentSeconds: (currentData.timePerQuestionSeconds || 60) - timeLeftRef.current,
+          token,
         })
       });
       const data = await res.json();

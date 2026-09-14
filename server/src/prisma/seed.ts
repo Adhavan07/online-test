@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { hashPassword } from '../lib/crypto.js';
 
 const prisma = new PrismaClient();
 
@@ -29,11 +30,12 @@ async function main() {
     },
   });
 
-  // 2. Create Users
+  // 2. Create Users with salted password hashes
   const adminUser = await prisma.user.create({
     data: {
       name: 'System Admin',
       email: 'admin@techscreen.com',
+      passwordHash: hashPassword('Admin@123456'),
       role: 'ADMIN',
       companyId: company.id,
     },
@@ -43,6 +45,7 @@ async function main() {
     data: {
       name: 'Sarah Jenkins (Lead HR)',
       email: 'recruiter@acme.com',
+      passwordHash: hashPassword('Recruiter@123456'),
       role: 'RECRUITER',
       companyId: company.id,
     },
@@ -54,6 +57,7 @@ async function main() {
     data: {
       title: 'DevOps Engineer Technical Screening',
       roleCategory: 'DEVOPS',
+      companyId: company.id,
       durationMinutes: 15,
       totalQuestions: 15,
       passPercentage: 70,
@@ -368,6 +372,7 @@ async function main() {
     data: {
       title: 'Frontend Engineer Technical Assessment',
       roleCategory: 'FRONTEND',
+      companyId: company.id,
       durationMinutes: 15,
       totalQuestions: 10,
       passPercentage: 70,

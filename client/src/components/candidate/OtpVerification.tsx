@@ -135,14 +135,9 @@ export const OtpVerification: React.FC<OtpVerificationProps> = ({
         <div>
           <div className="flex justify-between items-center mb-1.5">
             <label className="font-semibold text-zinc-700">6-Digit Access Passcode</label>
-            <button
-              type="button"
-              onClick={() => setOtpCode('123456')}
-              className="font-mono text-[11px] text-blue-600 hover:text-blue-700 underline"
-              title="Click to auto-fill demo passcode 123456"
-            >
-              Demo Code: 123456
-            </button>
+            <span className="font-mono text-[11px] text-zinc-500">
+              Check your inbox
+            </span>
           </div>
           <div className="relative">
             <KeyRound className="h-4 w-4 absolute left-3 top-3 text-zinc-400" />

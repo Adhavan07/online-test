@@ -3,6 +3,7 @@ import { ResumeMatchingService } from './ResumeMatchingService.js';
 import { EmailService } from './EmailService.js';
 import { NotificationService } from './NotificationService.js';
 import { CodeExecutionService } from './CodeExecutionService.js';
+import { generateSecureOtp, hashOtp, verifyOtpCode } from '../lib/crypto.js';
 
 export class AssessmentEngine {
   /**
@@ -28,27 +29,21 @@ export class AssessmentEngine {
               }
             }
           }
-        },
-        attempts: {
-          orderBy: { startedAt: 'desc' },
-          take: 1,
-          include: {
-            result: true
-          }
         }
       }
     });
 
-    if (!application) {
-      throw new Error('Invalid or expired assessment link.');
-    }
+    if (!application) throw new Error('Invalid assessment access token');
 
-    if (new Date() > application.tokenExpiresAt) {
-      throw new Error('Assessment link has expired.');
-    }
+    const isExpired = new Date() > application.tokenExpiresAt;
+    if (isExpired) throw new Error('Assessment invitation link has expired');
 
     const template = application.job.assessmentTemplate;
-    const latestAttempt = application.attempts[0] || null;
+    const latestAttempt = await prisma.assessmentAttempt.findFirst({
+      where: { applicationId: application.id },
+      orderBy: { startedAt: 'desc' },
+      include: { result: true }
+    });
 
     return {
       applicationId: application.id,
@@ -79,6 +74,7 @@ export class AssessmentEngine {
       } : null,
       status: application.status,
       isOtpVerified: application.isOtpVerified,
+      createdAt: application.createdAt,
       latestAttempt: latestAttempt ? {
         id: latestAttempt.id,
         isCompleted: latestAttempt.isCompleted,
@@ -91,6 +87,8 @@ export class AssessmentEngine {
    * Send 6-digit OTP to Candidate
    */
   static async sendOtp(token: string) {
+    if (!token) throw new Error('Verification token is required');
+
     const application = await prisma.jobApplication.findUnique({
       where: { token },
       include: { candidate: true, job: true }
@@ -98,26 +96,49 @@ export class AssessmentEngine {
 
     if (!application) throw new Error('Application not found');
 
-    // Generate fixed 6-digit code or random for testing
-    const otpCode = '123456';
+    // Enforce 30-second resend cooldown
+    const COOLDOWN_SECONDS = 30;
+    if (application.otpLastSentAt) {
+      const elapsedMs = Date.now() - application.otpLastSentAt.getTime();
+      if (elapsedMs < COOLDOWN_SECONDS * 1000) {
+        const waitSeconds = Math.ceil((COOLDOWN_SECONDS * 1000 - elapsedMs) / 1000);
+        throw new Error(`Please wait ${waitSeconds}s before requesting another verification code.`);
+      }
+    }
+
+    // Cryptographically secure 6-digit numeric OTP
+    const otp = generateSecureOtp();
+    const otpCodeHash = hashOtp(otp);
+    const otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes validity
+
     await prisma.jobApplication.update({
       where: { id: application.id },
-      data: { otpCode }
+      data: {
+        otpCode: null,
+        otpCodeHash,
+        otpExpiresAt,
+        otpAttemptsCount: 0,
+        otpLastSentAt: new Date(),
+      }
     });
 
-    const testUrl = `http://localhost:3000/assessment/${token}`;
-    const emailResult = await EmailService.sendOtp(
+    const testUrl = `${process.env.APP_URL || 'http://localhost:3000'}/assessment/${token}`;
+    await EmailService.sendOtp(
       application.candidate.name,
       application.candidate.email,
       application.job?.title || 'Technical Assessment',
-      otpCode,
+      otp,
       testUrl
     );
 
+    // Development console log for manual QA without mailbox access
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[AUTH/OTP] Generated OTP for candidate ${application.candidate.email}: [${otp}]`);
+    }
+
     return { 
       success: true, 
-      message: `OTP sent to ${application.candidate.email}`,
-      emailResult
+      message: `OTP sent to ${application.candidate.email}`
     };
   }
 
@@ -125,17 +146,56 @@ export class AssessmentEngine {
    * Verify Candidate OTP
    */
   static async verifyOtp(token: string, otpCode: string) {
+    if (!token || !otpCode) {
+      throw new Error('Verification token and 6-digit code are required.');
+    }
+
     const application = await prisma.jobApplication.findUnique({ where: { token } });
     if (!application) throw new Error('Application not found');
 
-    // Allow '123456' as master bypass OTP for smooth demonstration
-    if (otpCode !== '123456' && application.otpCode !== otpCode) {
-      throw new Error('Invalid verification code. Please try again.');
+    if (application.isOtpVerified) {
+      return { success: true, isOtpVerified: true };
     }
 
+    const MAX_ATTEMPTS = 5;
+    if (application.otpAttemptsCount >= MAX_ATTEMPTS) {
+      throw new Error('Too many failed attempts. Verification passcode has been locked. Please request a new code.');
+    }
+
+    if (!application.otpCodeHash || !application.otpExpiresAt) {
+      throw new Error('No active verification code found. Please request a new code.');
+    }
+
+    if (new Date() > application.otpExpiresAt) {
+      throw new Error('Verification code has expired. Please request a new code.');
+    }
+
+    const isValid = verifyOtpCode(otpCode.trim(), application.otpCodeHash);
+
+    if (!isValid) {
+      const newAttempts = application.otpAttemptsCount + 1;
+      await prisma.jobApplication.update({
+        where: { id: application.id },
+        data: { otpAttemptsCount: newAttempts }
+      });
+
+      const remaining = MAX_ATTEMPTS - newAttempts;
+      if (remaining <= 0) {
+        throw new Error('Too many failed attempts. Verification code locked. Please request a new code.');
+      }
+      throw new Error(`Invalid verification code. ${remaining} attempt(s) remaining.`);
+    }
+
+    // Success: invalidate OTP (single-use) and mark application as verified
     await prisma.jobApplication.update({
       where: { id: application.id },
-      data: { isOtpVerified: true }
+      data: {
+        isOtpVerified: true,
+        otpCode: null,
+        otpCodeHash: null,
+        otpExpiresAt: null,
+        otpAttemptsCount: 0,
+      }
     });
 
     return { success: true, isOtpVerified: true };
@@ -268,7 +328,7 @@ export class AssessmentEngine {
   /**
    * Fetch current question details for candidate (Timer = 60s per question)
    */
-  static async getQuestionAtIndex(attemptId: string, index?: number) {
+  static async getQuestionAtIndex(attemptId: string, index?: number): Promise<any> {
     const attempt = await prisma.assessmentAttempt.findUnique({
       where: { id: attemptId },
       include: {
@@ -330,20 +390,42 @@ export class AssessmentEngine {
 
     const allowedDuration = question.type === 'CODING' ? 180 : 60;
     const elapsedSeconds = Math.floor((now.getTime() - new Date(activeStartedAt).getTime()) / 1000);
+
+    // Auto-advance if question window expired before submission
+    if (elapsedSeconds >= allowedDuration + 5) {
+      const nextIndex = targetIndex + 1;
+      await prisma.assessmentAttempt.update({
+        where: { id: attemptId },
+        data: {
+          currentQuestionIndex: nextIndex,
+          activeQuestionStartedAt: null,
+        }
+      });
+      if (nextIndex >= questionIds.length) {
+        await this.evaluateAssessment(attemptId);
+        return { isCompleted: true };
+      }
+      return this.getQuestionAtIndex(attemptId, nextIndex);
+    }
+
     const remainingSeconds = Math.max(0, allowedDuration - elapsedSeconds);
 
     // Check if already answered
     const existingAnswer = attempt.answers.find(a => a.questionId === questionId);
 
-    // Format public test cases preview if question type is CODING
+    // Format public test cases preview if question type is CODING (strictly excluding hidden test cases)
     let sampleTestCases: Array<{ description: string; input: string }> = [];
     if (question.type === 'CODING' && question.testCasesJson) {
       try {
         const fullCases = JSON.parse(question.testCasesJson);
-        sampleTestCases = fullCases.map((tc: any, i: number) => ({
-          description: tc.description || `Test Case #${i + 1}`,
-          input: tc.input,
-        }));
+        if (Array.isArray(fullCases)) {
+          // Strictly exclude hidden/benchmark test cases
+          const visibleCases = fullCases.filter((tc: any) => !tc.isHidden);
+          sampleTestCases = visibleCases.map((tc: any, i: number) => ({
+            description: tc.description || `Sample Case #${i + 1}`,
+            input: tc.input,
+          }));
+        }
       } catch {}
     }
 
@@ -362,7 +444,7 @@ export class AssessmentEngine {
         sectionTitle: question.section.title,
         codeTemplate: question.codeTemplate,
         sampleTestCases,
-        options: question.options.sort(() => Math.random() - 0.5),
+        options: question.options.map((o: any) => ({ id: o.id, text: o.text })).sort(() => Math.random() - 0.5),
       },
       previousAnswer: existingAnswer ? JSON.parse(existingAnswer.selectedOptionIdsJson) : [],
       previousCodeAnswer: existingAnswer?.codeAnswer || question.codeTemplate || '',
@@ -390,6 +472,28 @@ export class AssessmentEngine {
 
     const questionIds: string[] = JSON.parse(attempt.questionOrderJson);
     const currentIndex = questionIds.indexOf(questionId);
+
+    const question = await prisma.question.findUnique({ where: { id: questionId } });
+    if (!question) throw new Error('Question not found');
+
+    const allowedDuration = question.type === 'CODING' ? 180 : 60;
+    const GRACE_PERIOD_SECONDS = 10;
+
+    // Enforce question timer limits (Reject late answers that exceeded timer + grace window)
+    if (attempt.activeQuestionStartedAt && attempt.currentQuestionIndex === currentIndex) {
+      const elapsedSeconds = Math.floor((Date.now() - new Date(attempt.activeQuestionStartedAt).getTime()) / 1000);
+      if (elapsedSeconds > (allowedDuration + GRACE_PERIOD_SECONDS)) {
+        const nextIndex = (currentIndex >= 0 ? currentIndex : attempt.currentQuestionIndex) + 1;
+        await prisma.assessmentAttempt.update({
+          where: { id: attemptId },
+          data: { currentQuestionIndex: nextIndex, activeQuestionStartedAt: null }
+        });
+        if (nextIndex >= questionIds.length) {
+          return await this.evaluateAssessment(attemptId);
+        }
+        throw new Error('Question time limit expired. The question has timed out.');
+      }
+    }
 
     // Record or update candidate answer
     const existing = await prisma.candidateAnswer.findFirst({
@@ -571,6 +675,9 @@ export class AssessmentEngine {
           break;
         case 'SUSPICIOUS_BEHAVIOR':
           rawRiskScore += 15;
+          break;
+        case 'WEBCAM_SNAPSHOT':
+          // Benign proctoring snapshot, no penalty
           break;
         default:
           rawRiskScore += 5;

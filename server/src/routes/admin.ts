@@ -1,13 +1,17 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { EmailService } from '../services/EmailService.js';
+import { authenticateToken, requireRole, AuthenticatedRequest } from '../middleware/auth.js';
 
 export const adminRouter = Router();
+
+// Protect ALL admin routes with ADMIN RBAC
+adminRouter.use(authenticateToken, requireRole(['ADMIN', 'HR_ADMIN']));
 
 /**
  * Get Platform Dashboard Metrics & Health
  */
-adminRouter.get('/stats', async (req, res) => {
+adminRouter.get('/stats', async (req: AuthenticatedRequest, res) => {
   try {
     const totalCompanies = await prisma.company.count();
     const totalUsers = await prisma.user.count();
@@ -40,7 +44,7 @@ adminRouter.get('/stats', async (req, res) => {
 /**
  * Create Question Endpoint (MCQ & CODING types supported)
  */
-adminRouter.post('/questions', async (req, res) => {
+adminRouter.post('/questions', async (req: AuthenticatedRequest, res) => {
   const { sectionId, type, prompt, difficulty, codeTemplate, testCasesJson, explanation, options } = req.body;
 
   try {
@@ -69,6 +73,8 @@ adminRouter.post('/questions', async (req, res) => {
 
     await prisma.auditLog.create({
       data: {
+        userId: req.user?.id,
+        userName: req.user?.name,
         action: 'QUESTION_CREATED',
         entity: 'Question',
         details: `Created new ${type} question: "${prompt.slice(0, 40)}..."`,
@@ -84,7 +90,7 @@ adminRouter.post('/questions', async (req, res) => {
 /**
  * Create Assessment Template Endpoint
  */
-adminRouter.post('/templates', async (req, res) => {
+adminRouter.post('/templates', async (req: AuthenticatedRequest, res) => {
   const { title, roleCategory, durationMinutes, passPercentage, sections } = req.body;
 
   try {
@@ -110,6 +116,8 @@ adminRouter.post('/templates', async (req, res) => {
 
     await prisma.auditLog.create({
       data: {
+        userId: req.user?.id,
+        userName: req.user?.name,
         action: 'TEMPLATE_CREATED',
         entity: 'AssessmentTemplate',
         details: `Created new Assessment Template "${title}"`,
@@ -125,7 +133,7 @@ adminRouter.post('/templates', async (req, res) => {
 /**
  * Get Audit Logs
  */
-adminRouter.get('/audit-logs', async (req, res) => {
+adminRouter.get('/audit-logs', async (req: AuthenticatedRequest, res) => {
   try {
     const logs = await prisma.auditLog.findMany({
       orderBy: { createdAt: 'desc' },
@@ -140,7 +148,7 @@ adminRouter.get('/audit-logs', async (req, res) => {
 /**
  * Get Email Logs
  */
-adminRouter.get('/email-logs', async (req, res) => {
+adminRouter.get('/email-logs', async (req: AuthenticatedRequest, res) => {
   try {
     const logs = await prisma.emailLog.findMany({
       orderBy: { sentAt: 'desc' },
@@ -153,9 +161,9 @@ adminRouter.get('/email-logs', async (req, res) => {
 });
 
 /**
- * Get Current SMTP Configuration
+ * Get Current SMTP Configuration (ADMIN ONLY - Sensitive)
  */
-adminRouter.get('/smtp-config', async (req, res) => {
+adminRouter.get('/smtp-config', async (req: AuthenticatedRequest, res) => {
   try {
     const config = await EmailService.getSmtpConfig();
     res.json({ success: true, config });
@@ -165,9 +173,9 @@ adminRouter.get('/smtp-config', async (req, res) => {
 });
 
 /**
- * Save SMTP Configuration dynamically
+ * Save SMTP Configuration dynamically (ADMIN ONLY - Sensitive)
  */
-adminRouter.post('/smtp-config', async (req, res) => {
+adminRouter.post('/smtp-config', async (req: AuthenticatedRequest, res) => {
   try {
     const { host, port, user, pass, from, secure, service } = req.body;
     const result = await EmailService.saveSmtpConfig({
@@ -179,6 +187,17 @@ adminRouter.post('/smtp-config', async (req, res) => {
       secure: secure !== undefined ? Boolean(secure) : undefined,
       service,
     });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user?.id,
+        userName: req.user?.name,
+        action: 'SMTP_CONFIG_UPDATED',
+        entity: 'SystemSetting',
+        details: `Updated SMTP email configuration to service=${service || 'custom'} host=${host || 'env'}`,
+      }
+    });
+
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -186,9 +205,9 @@ adminRouter.post('/smtp-config', async (req, res) => {
 });
 
 /**
- * Send Live Test Email to verify SMTP setup
+ * Send Live Test Email to verify SMTP setup (ADMIN ONLY)
  */
-adminRouter.post('/test-email', async (req, res) => {
+adminRouter.post('/test-email', async (req: AuthenticatedRequest, res) => {
   try {
     const { recipientEmail } = req.body;
     if (!recipientEmail) {
@@ -203,9 +222,9 @@ adminRouter.post('/test-email', async (req, res) => {
 });
 
 /**
- * Resend Email from Log
+ * Resend Email from Log (ADMIN ONLY)
  */
-adminRouter.post('/email-logs/:id/resend', async (req, res) => {
+adminRouter.post('/email-logs/:id/resend', async (req: AuthenticatedRequest, res) => {
   try {
     const log = await prisma.emailLog.findUnique({ where: { id: req.params.id } });
     if (!log) {
@@ -224,4 +243,3 @@ adminRouter.post('/email-logs/:id/resend', async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
-

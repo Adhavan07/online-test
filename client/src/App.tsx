@@ -11,8 +11,13 @@ import { LiveInterviewRoom } from './components/candidate/LiveInterviewRoom';
 import { VerifiedSkillBadge } from './components/candidate/VerifiedSkillBadge';
 import { SmtpSettingsModal } from './components/admin/SmtpSettingsModal';
 import { ToastProvider } from './components/common/Toast';
+import { LoginPage } from './components/auth/LoginPage';
+import { getStoredUser, clearStoredSession, UserSession } from './lib/auth';
 
 export const AppContent: React.FC = () => {
+  // Session State
+  const [currentUser, setCurrentUser] = useState<UserSession | null>(getStoredUser());
+
   // Candidate / Interview standalone routes mode vs Recruiter Workspace
   const [standaloneMode, setStandaloneMode] = useState<'NONE' | 'CANDIDATE' | 'RESULT' | 'INTERVIEW' | 'BADGE'>('NONE');
   
@@ -46,6 +51,16 @@ export const AppContent: React.FC = () => {
     }
   }, []);
 
+  // Listen for unauthorized 401 events across the app
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      clearStoredSession();
+      setCurrentUser(null);
+    };
+    window.addEventListener('techscreen:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('techscreen:unauthorized', handleUnauthorized);
+  }, []);
+
   // Global Keyboard Shortcuts (⌘K for Search, ⌘N for Create Job)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -62,6 +77,11 @@ export const AppContent: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  const handleLogout = () => {
+    clearStoredSession();
+    setCurrentUser(null);
+  };
+
   // Isolated views (Candidate Test, Live Sandbox, Verified Skill Badge)
   if (standaloneMode === 'INTERVIEW') {
     return <LiveInterviewRoom />;
@@ -77,13 +97,9 @@ export const AppContent: React.FC = () => {
 
   if (standaloneMode === 'CANDIDATE') {
     const candidateOptions = [
-      { label: 'Adhavan jvr (jojoasta381@gmail.com - DevOps Engineer)', token: 'cand-45oejqhul-mtsfqyqq' },
-      { label: 'Priya Sharma (Fresh Test - Not Started)', token: 'demo-test-token-priya-123456' },
-      { label: 'Ananya Roy (Fresh Test - Not Started)', token: 'cand-ejd0a2vdf-mtn7f6sj' },
-      { label: 'Vikram Singh (Fresh Test - Not Started)', token: 'cand-syvu4v225-mtn7f6tl' },
-      { label: 'David Joseph (Manual Review Flag - 84% + High Risk 78%)', token: 'david-test-token-889900' },
-      { label: 'Arun Kumar (Completed & Shortlisted - Passed 86.7%)', token: 'arun-devops-token-778899' },
-      { label: 'Rahul Verma (Completed & Rejected - 53.3%)', token: 'rahul-test-token-445566' },
+      { label: 'Priya Sharma (Pending Test)', token: 'demo-test-token-priya-123456' },
+      { label: 'Adhavan jvr (DevOps Candidate)', token: 'cand-45oejqhul-mtsfqyqq' },
+      { label: 'Arun Kumar (Completed & Shortlisted)', token: 'arun-devops-token-778899' },
     ];
 
     return (
@@ -91,7 +107,7 @@ export const AppContent: React.FC = () => {
         {/* Candidate preview return banner */}
         <div className="bg-zinc-900 text-white text-xs py-2 px-4 flex flex-wrap justify-between items-center gap-3 font-mono border-b border-zinc-800">
           <div className="flex items-center space-x-2">
-            <span className="text-zinc-400 font-medium">Simulator Profile:</span>
+            <span className="text-zinc-400 font-medium">Candidate Simulator:</span>
             <select
               value={candidateToken}
               onChange={(e) => setCandidateToken(e.target.value)}
@@ -118,6 +134,11 @@ export const AppContent: React.FC = () => {
     );
   }
 
+  // If not logged in and not in candidate standalone mode, render Authentication Gate
+  if (!currentUser) {
+    return <LoginPage onLoginSuccess={(user) => setCurrentUser(user)} />;
+  }
+
   // Enterprise Recruiter Workspace Shell
   return (
     <div className="min-h-screen bg-[#FAFAFA] text-zinc-900 flex font-sans antialiased">
@@ -127,6 +148,8 @@ export const AppContent: React.FC = () => {
         activeView={activeView}
         setActiveView={setActiveView}
         onOpenCreateJob={() => setIsCreateJobOpen(true)}
+        currentUser={currentUser}
+        onLogout={handleLogout}
       />
 
       {/* Main Content Area */}

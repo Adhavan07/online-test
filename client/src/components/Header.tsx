@@ -88,7 +88,7 @@ export const Header: React.FC<HeaderProps> = ({
 
         <div className="flex items-center space-x-1 text-[11px] font-mono text-zinc-500 bg-zinc-50 px-2 py-1 rounded border border-zinc-200">
           <Globe className="h-3 w-3 text-emerald-600" />
-          <span>PRODUCTION</span>
+          <span>{import.meta.env.PROD ? 'PRODUCTION' : 'DEV WORKSPACE'}</span>
         </div>
       </div>
 

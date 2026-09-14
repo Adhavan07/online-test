@@ -100,6 +100,7 @@ export class ResumeMatchingService {
     const patterns = [
       /(\d+)\+?\s*(?:years?|yrs?)\s+(?:of\s+)?experience/i,
       /experience\s*:\s*(\d+)\+?\s*(?:years?|yrs?)/i,
+      /(?:for|with)\s+(\d+)\+?\s*(?:years?|yrs?)/i,
       /(\d+)\+?\s*(?:years?|yrs?)\s+in\s+[a-z0-9_\s]+/i,
       /(\d+)\+?\s*(?:years?|yrs?)\s+working/i,
     ];

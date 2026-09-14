@@ -8,22 +8,25 @@ generator client {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  name      String
-  role      String   // ADMIN, RECRUITER, CANDIDATE
-  companyId String?
-  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  createdAt DateTime @default(now())
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String
+  passwordHash String?
+  role         String   // ADMIN, RECRUITER, CANDIDATE
+  companyId    String?
+  company      Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
 }
 
 model Company {
-  id        String   @id @default(uuid())
+  id        String               @id @default(uuid())
   name      String
   logoUrl   String?
   users     User[]
   jobs      Job[]
-  createdAt DateTime @default(now())
+  templates AssessmentTemplate[]
+  webhooks  WebhookConfig[]
+  createdAt DateTime             @default(now())
 }
 
 model Job {
@@ -51,6 +54,8 @@ model AssessmentTemplate {
   passPercentage  Int                 @default(70)
   shuffleQuestions Boolean            @default(true)
   shuffleOptions   Boolean            @default(true)
+  companyId       String?
+  company         Company?            @relation(fields: [companyId], references: [id], onDelete: Cascade)
   sections        AssessmentSection[]
   jobs            Job[]
   attempts        AssessmentAttempt[]
@@ -108,7 +113,11 @@ model JobApplication {
   status               String             @default("APPLIED") // APPLIED, INVITED, STARTED, IN_PROGRESS, SUBMITTED, EVALUATING, PASSED, FAILED, MANUAL_REVIEW, SHORTLISTED, HR_INTERVIEW, REJECTED
   token                String             @unique
   tokenExpiresAt       DateTime
-  otpCode              String?
+  otpCode              String?            // Deprecated plaintext field
+  otpCodeHash          String?
+  otpExpiresAt         DateTime?
+  otpAttemptsCount     Int                @default(0)
+  otpLastSentAt        DateTime?
   isOtpVerified        Boolean            @default(false)
   interviewScheduledAt DateTime?
   interviewLink        String?
@@ -219,6 +228,7 @@ model Notification {
   jobTitle      String?
   link          String?
   isRead        Boolean  @default(false)
+  companyId     String?
   createdAt     DateTime @default(now())
 }
 
@@ -232,6 +242,7 @@ model AuditLog {
   id        String   @id @default(uuid())
   userId    String?
   userName  String?
+  companyId String?
   action    String
   entity    String
   details   String
@@ -275,6 +286,8 @@ model WebhookConfig {
   eventsJson       String    // JSON string e.g. ["candidate.completed", "assessment.passed"]
   isActive         Boolean   @default(true)
   lastDispatchedAt DateTime?
+  companyId        String?
+  company          Company?  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   createdAt        DateTime  @default(now())
 }
 

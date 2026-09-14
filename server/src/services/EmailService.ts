@@ -28,6 +28,16 @@ export class EmailService {
    * Initialize or retrieve the active Nodemailer transporter
    */
   static async getTransporter(): Promise<{ transporter: Transporter; transportType: string; isRealSmtp: boolean }> {
+    // In automated testing, use local jsonTransport to avoid network timeouts or credential leaks
+    if (process.env.NODE_ENV === 'test') {
+      if (!this.transporter) {
+        this.transporter = nodemailer.createTransport({
+          jsonTransport: true,
+        });
+      }
+      return { transporter: this.transporter, transportType: 'TEST_STREAM', isRealSmtp: false };
+    }
+
     // 1. Check if user configured SMTP in database settings
     if (!this.cachedConfig) {
       try {

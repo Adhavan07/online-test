@@ -1,18 +1,42 @@
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../lib/prisma.js';
-import { authenticateToken, requireRole, AuthenticatedRequest } from '../middleware/auth.js';
+import { authenticateToken, requireRole, AuthenticatedRequest, getJwtSecret } from '../middleware/auth.js';
+import { verifyPassword, hashPassword } from '../lib/crypto.js';
+
+import { createRateLimiter } from '../middleware/rateLimit.js';
 
 export const authRouter = Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'techscreen-enterprise-secret-change-in-prod-2026';
+
+const loginRateLimiter = createRateLimiter({
+  windowMs: 60000,
+  max: 10,
+  message: 'Too many login attempts. Please wait 1 minute before trying again.'
+});
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
- * Get available workspace users or demo sessions
+ * Get available workspace users for authenticated recruiters/admins
  */
-authRouter.get('/users', async (req, res) => {
+authRouter.get('/users', authenticateToken, requireRole(['ADMIN', 'RECRUITER']), async (req: AuthenticatedRequest, res) => {
   try {
+    const isSuperAdmin = req.user?.role === 'ADMIN' || req.user?.role === 'HR_ADMIN';
+    const where = isSuperAdmin && !req.user?.companyId ? {} : { companyId: req.user?.companyId || undefined };
+
     const users = await prisma.user.findMany({
-      include: { company: true },
+      where,
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        companyId: true,
+        createdAt: true,
+        company: {
+          select: { id: true, name: true, logoUrl: true }
+        }
+      },
       orderBy: { createdAt: 'asc' }
     });
     res.json({ success: true, users });
@@ -22,49 +46,46 @@ authRouter.get('/users', async (req, res) => {
 });
 
 /**
- * Enterprise Login & JWT Token Issuance
+ * Enterprise Login with Credential Verification & JWT Token Issuance
+ * Enforces database-stored roles; strictly rejects client-supplied role claims.
  */
-authRouter.post('/login', async (req, res) => {
-  const { email, role } = req.body;
+authRouter.post('/login', loginRateLimiter, async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ success: false, error: 'Email and password are required.' });
+  }
+
+  const normalizedEmail = String(email).trim().toLowerCase();
+  if (!EMAIL_REGEX.test(normalizedEmail)) {
+    return res.status(400).json({ success: false, error: 'Invalid email address format.' });
+  }
+
   try {
-    let user = await prisma.user.findFirst({
-      where: { email },
+    const user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
       include: { company: true }
     });
 
     if (!user) {
-      // Find or create default enterprise company
-      let company = await prisma.company.findFirst();
-      if (!company) {
-        company = await prisma.company.create({
-          data: {
-            name: 'Acme Enterprise Technologies',
-            logoUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=120&q=80',
-          }
-        });
-      }
-
-      user = await prisma.user.create({
-        data: {
-          email,
-          name: email.split('@')[0].replace('.', ' ').replace(/^./, (str: string) => str.toUpperCase()),
-          role: role || 'HR_ADMIN',
-          companyId: company.id,
-        },
-        include: { company: true }
-      });
+      return res.status(401).json({ success: false, error: 'Invalid email or password.' });
     }
 
-    // Generate real cryptographic JWT
+    if (!user.passwordHash || !verifyPassword(String(password), user.passwordHash)) {
+      return res.status(401).json({ success: false, error: 'Invalid email or password.' });
+    }
+
     const tokenPayload = {
       id: user.id,
       email: user.email,
       name: user.name,
-      role: user.role,
+      role: user.role, // Authoritative role from trusted database record
       companyId: user.companyId
     };
 
-    const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '7d' });
+    const secret = getJwtSecret();
+    const expiresIn = (process.env.JWT_EXPIRES_IN || '8h') as any;
+    const token = jwt.sign(tokenPayload, secret, { expiresIn });
 
     res.json({
       success: true,
@@ -75,7 +96,11 @@ authRouter.post('/login', async (req, res) => {
         email: user.email,
         role: user.role,
         companyId: user.companyId,
-        company: user.company
+        company: user.company ? {
+          id: user.company.id,
+          name: user.company.name,
+          logoUrl: user.company.logoUrl,
+        } : null,
       }
     });
   } catch (err: any) {
@@ -105,7 +130,11 @@ authRouter.get('/me', authenticateToken, async (req: AuthenticatedRequest, res) 
         email: user.email,
         role: user.role,
         companyId: user.companyId,
-        company: user.company
+        company: user.company ? {
+          id: user.company.id,
+          name: user.company.name,
+          logoUrl: user.company.logoUrl,
+        } : null,
       }
     });
   } catch (err: any) {
@@ -116,11 +145,19 @@ authRouter.get('/me', authenticateToken, async (req: AuthenticatedRequest, res) 
 /**
  * List Team Members for Active Company Workspace
  */
-authRouter.get('/team', authenticateToken, async (req: AuthenticatedRequest, res) => {
+authRouter.get('/team', authenticateToken, requireRole(['ADMIN', 'RECRUITER']), async (req: AuthenticatedRequest, res) => {
   try {
     const companyId = req.user?.companyId;
     const members = await prisma.user.findMany({
       where: companyId ? { companyId } : {},
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        companyId: true,
+        createdAt: true,
+      },
       orderBy: { createdAt: 'asc' }
     });
 
@@ -131,26 +168,47 @@ authRouter.get('/team', authenticateToken, async (req: AuthenticatedRequest, res
 });
 
 /**
- * Invite / Add Team Member to Workspace (HR_ADMIN / RECRUITER)
+ * Invite / Add Team Member to Workspace (ADMIN / RECRUITER)
  */
-authRouter.post('/team/invite', authenticateToken, requireRole(['HR_ADMIN', 'RECRUITER']), async (req: AuthenticatedRequest, res) => {
-  const { name, email, role } = req.body;
+authRouter.post('/team/invite', authenticateToken, requireRole(['ADMIN', 'RECRUITER']), async (req: AuthenticatedRequest, res) => {
+  const { name, email, role, password } = req.body;
   try {
     if (!name || !email || !role) {
       return res.status(400).json({ success: false, error: 'Name, email, and role are required.' });
     }
 
-    const existing = await prisma.user.findUnique({ where: { email } });
+    const normalizedEmail = String(email).trim().toLowerCase();
+    if (!EMAIL_REGEX.test(normalizedEmail)) {
+      return res.status(400).json({ success: false, error: 'Invalid email address format.' });
+    }
+
+    const ALLOWED_ROLES = ['ADMIN', 'RECRUITER', 'HR_ADMIN', 'TECH_INTERVIEWER'];
+    const normalizedRole = String(role).trim().toUpperCase();
+    if (!ALLOWED_ROLES.includes(normalizedRole)) {
+      return res.status(400).json({ success: false, error: `Invalid role: ${role}. Allowed roles: ${ALLOWED_ROLES.join(', ')}` });
+    }
+
+    const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (existing) {
       return res.status(400).json({ success: false, error: 'User with this email already exists in workspace.' });
     }
 
+    const defaultPassword = password || 'Welcome@2026';
     const member = await prisma.user.create({
       data: {
-        name,
-        email,
-        role,
+        name: String(name).trim(),
+        email: normalizedEmail,
+        passwordHash: hashPassword(defaultPassword),
+        role: String(role).toUpperCase(),
         companyId: req.user?.companyId || null,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        companyId: true,
+        createdAt: true,
       }
     });
 
@@ -161,9 +219,9 @@ authRouter.post('/team/invite', authenticateToken, requireRole(['HR_ADMIN', 'REC
 });
 
 /**
- * Update Workspace Branding / Settings (HR_ADMIN)
+ * Update Workspace Branding / Settings (ADMIN / HR_ADMIN)
  */
-authRouter.patch('/workspace', authenticateToken, requireRole(['HR_ADMIN']), async (req: AuthenticatedRequest, res) => {
+authRouter.patch('/workspace', authenticateToken, requireRole(['ADMIN', 'HR_ADMIN']), async (req: AuthenticatedRequest, res) => {
   const { name, logoUrl } = req.body;
   try {
     if (!req.user?.companyId) {
@@ -173,8 +231,8 @@ authRouter.patch('/workspace', authenticateToken, requireRole(['HR_ADMIN']), asy
     const company = await prisma.company.update({
       where: { id: req.user.companyId },
       data: {
-        ...(name ? { name } : {}),
-        ...(logoUrl !== undefined ? { logoUrl } : {}),
+        ...(name ? { name: String(name).trim() } : {}),
+        ...(logoUrl !== undefined ? { logoUrl: String(logoUrl).trim() } : {}),
       }
     });
 

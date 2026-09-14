@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { AssessmentEngine } from '../services/AssessmentEngine.js';
+import { optionalAuth } from '../middleware/auth.js';
+import { requireAttemptAccess, requireActiveAttempt, AssessmentAttemptRequest } from '../middleware/assessmentAuth.js';
 
 export const assessmentRouter = Router();
 
@@ -55,9 +57,9 @@ assessmentRouter.post('/start', async (req, res) => {
 });
 
 /**
- * Fetch Current Question at index
+ * Fetch Current Question at index (Anti-IDOR Protected)
  */
-assessmentRouter.get('/question/:attemptId', async (req, res) => {
+assessmentRouter.get('/question/:attemptId', optionalAuth, requireAttemptAccess, async (req: AssessmentAttemptRequest, res) => {
   const { index } = req.query;
   try {
     const targetIndex = index !== undefined ? Number(index) : undefined;
@@ -69,9 +71,9 @@ assessmentRouter.get('/question/:attemptId', async (req, res) => {
 });
 
 /**
- * Submit Answer for active question (60-second or coding timer locked)
+ * Submit Answer for active question (Anti-IDOR & Timer Locked)
  */
-assessmentRouter.post('/submit-answer', async (req, res) => {
+assessmentRouter.post('/submit-answer', optionalAuth, requireAttemptAccess, requireActiveAttempt, async (req: AssessmentAttemptRequest, res) => {
   const { attemptId, questionId, selectedOptionIds, timeSpentSeconds, codeAnswer } = req.body;
   try {
     const response = await AssessmentEngine.submitAnswer(
@@ -102,93 +104,51 @@ assessmentRouter.post('/run-code', async (req, res) => {
 });
 
 /**
- * Record Real-time Proctoring Integrity Violation Log
+ * Record Real-time Proctoring Integrity Violation Log (Anti-IDOR Protected)
  */
-assessmentRouter.post('/proctor-event', async (req, res) => {
+assessmentRouter.post('/proctor-event', optionalAuth, requireAttemptAccess, requireActiveAttempt, async (req: AssessmentAttemptRequest, res) => {
   const { attemptId, eventType, details } = req.body;
   try {
-    const { prisma } = await import('../lib/prisma.js');
-    const log = await prisma.proctoringLog.create({
-      data: {
-        attemptId,
-        eventType,
-        details,
-      }
-    });
-
-    // Update counters on attempt
-    if (eventType === 'FOCUS_LOST') {
-      await prisma.assessmentAttempt.update({
-        where: { id: attemptId },
-        data: { tabSwitchCount: { increment: 1 } }
-      });
-    } else if (eventType === 'FULLSCREEN_EXIT') {
-      await prisma.assessmentAttempt.update({
-        where: { id: attemptId },
-        data: { fullscreenViolationCount: { increment: 1 } }
-      });
-    } else if (eventType === 'SCREEN_SHARE_STOPPED') {
-      await prisma.assessmentAttempt.update({
-        where: { id: attemptId },
-        data: { screenShareStopCount: { increment: 1 } }
-      });
-    } else if (eventType === 'CAMERA_DISABLED') {
-      await prisma.assessmentAttempt.update({
-        where: { id: attemptId },
-        data: { cameraDisconnectCount: { increment: 1 } }
-      });
-    }
-
-    res.json({ success: true, log });
+    const { ProctoringService } = await import('../services/ProctoringService.js');
+    const result = await ProctoringService.recordProctorEvent(attemptId, eventType, details);
+    res.json({ success: true, ...result });
   } catch (err: any) {
+    if (err.message?.startsWith('RATE_LIMIT_EXCEEDED')) {
+      return res.status(429).json({ success: false, error: err.message });
+    }
     res.status(400).json({ success: false, error: err.message });
   }
 });
 
 /**
- * Capture & Archive Periodic Proctoring Webcam Snapshot
+ * Capture & Archive Periodic Proctoring Webcam Snapshot (Anti-IDOR Protected)
  */
-assessmentRouter.post('/proctor-snapshot', async (req, res) => {
+assessmentRouter.post('/proctor-snapshot', optionalAuth, requireAttemptAccess, requireActiveAttempt, async (req: AssessmentAttemptRequest, res) => {
   const { attemptId, imageBase64, eventType, details } = req.body;
   try {
-    if (!attemptId || !imageBase64) {
-      return res.status(400).json({ success: false, error: 'attemptId and imageBase64 are required.' });
-    }
-
-    const { prisma } = await import('../lib/prisma.js');
-    const { storageService } = await import('../services/StorageService.js');
-
-    // Strip header if data URL format (e.g. data:image/jpeg;base64,...)
-    const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
-    const buffer = Buffer.from(base64Data, 'base64');
-    const filename = `snapshot-${attemptId.substring(0, 8)}-${Date.now()}.jpg`;
-
-    const stored = await storageService.saveBuffer(buffer, filename, 'proctoring');
-
-    const log = await prisma.proctoringLog.create({
-      data: {
-        attemptId,
-        eventType: eventType || 'WEBCAM_SNAPSHOT',
-        details: JSON.stringify({
-          snapshotUrl: stored.publicUrl,
-          reason: details || 'Periodic proctoring verification',
-          sizeBytes: stored.sizeBytes,
-        }),
-      }
-    });
-
-    res.json({ success: true, log, snapshotUrl: stored.publicUrl });
+    const { ProctoringService } = await import('../services/ProctoringService.js');
+    const result = await ProctoringService.recordSnapshot(attemptId, imageBase64, eventType, details);
+    res.json({ success: true, ...result });
   } catch (err: any) {
+    if (err.message?.startsWith('RATE_LIMIT_EXCEEDED')) {
+      return res.status(429).json({ success: false, error: err.message });
+    }
+    if (err.message?.startsWith('Payload too large')) {
+      return res.status(413).json({ success: false, error: err.message });
+    }
     res.status(400).json({ success: false, error: err.message });
   }
 });
 
 /**
- * Force Complete Assessment & Execute Auto-Evaluation
+ * Force Complete Assessment & Execute Auto-Evaluation (Anti-IDOR Protected)
  */
-assessmentRouter.post('/finish', async (req, res) => {
+assessmentRouter.post('/finish', optionalAuth, requireAttemptAccess, async (req: AssessmentAttemptRequest, res) => {
   const { attemptId } = req.body;
   try {
+    if (req.attempt?.isCompleted && req.attempt?.result) {
+      return res.json({ success: true, isCompleted: true, result: req.attempt.result });
+    }
     const evalRes = await AssessmentEngine.evaluateAssessment(attemptId);
     const finalResult = (evalRes as any).result || evalRes;
     res.json({ success: true, isCompleted: true, result: finalResult });

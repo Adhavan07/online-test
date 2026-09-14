@@ -2,11 +2,13 @@ import { Router } from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import { prisma } from '../lib/prisma.js';
 import { ResumeMatchingService } from '../services/ResumeMatchingService.js';
 import { EmailService } from '../services/EmailService.js';
 import { NotificationService } from '../services/NotificationService.js';
 import { storageService } from '../services/StorageService.js';
+import { authenticateToken, requireRole, AuthenticatedRequest } from '../middleware/auth.js';
 
 export const candidatesRouter = Router();
 
@@ -19,42 +21,58 @@ if (!fs.existsSync(uploadDir)) {
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, uploadDir),
   filename: (_req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    const ext = path.extname(file.originalname);
+    const ext = path.extname(file.originalname).toLowerCase();
+    const uniqueSuffix = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
     cb(null, `resume-${uniqueSuffix}${ext}`);
   }
 });
 
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB strict limit
   fileFilter: (_req, file, cb) => {
-    const allowedExts = ['.pdf', '.docx', '.doc'];
+    const allowedExts = ['.pdf', '.docx', '.doc', '.txt'];
     const ext = path.extname(file.originalname).toLowerCase();
     if (allowedExts.includes(ext)) {
       cb(null, true);
     } else {
-      cb(new Error('Only PDF and DOCX files are allowed.'));
+      cb(new Error(`File extension '${ext}' is not allowed. Only PDF, DOCX, and TXT files are supported.`));
     }
   }
 });
 
+export const handleResumeUpload = (req: any, res: any, next: any) => {
+  upload.single('resume')(req, res, (err: any) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ success: false, error: 'File size exceeds maximum allowed limit of 5MB.' });
+      }
+      return res.status(400).json({ success: false, error: err.message || 'File upload failed.' });
+    }
+    next();
+  });
+};
+
 /**
- * List Candidate Applications with filters
+ * List Candidate Applications with filters (Authenticated & Scoped)
  */
-candidatesRouter.get('/', async (req, res) => {
+candidatesRouter.get('/', authenticateToken, requireRole(['RECRUITER', 'ADMIN', 'TECH_INTERVIEWER']), async (req: AuthenticatedRequest, res) => {
   const { jobId, status, search } = req.query;
 
   try {
+    const isSuperAdmin = req.user?.role === 'ADMIN' && !req.user?.companyId;
     const whereClause: any = {};
+    if (!isSuperAdmin) {
+      whereClause.job = { companyId: req.user?.companyId || undefined };
+    }
     if (jobId) whereClause.jobId = String(jobId);
     if (status && status !== 'ALL') whereClause.status = String(status);
 
     if (search) {
       whereClause.candidate = {
         OR: [
-          { name: { contains: String(search) } },
-          { email: { contains: String(search) } },
+          { name: { contains: String(search), mode: 'insensitive' } },
+          { email: { contains: String(search), mode: 'insensitive' } },
         ]
       };
     }
@@ -210,7 +228,7 @@ candidatesRouter.get('/', async (req, res) => {
 /**
  * Candidate Detail view for Recruiter Inspection (Includes Proctoring & Coding Submissions)
  */
-candidatesRouter.get('/detail/:applicationId', async (req, res) => {
+candidatesRouter.get('/detail/:applicationId', authenticateToken, requireRole(['RECRUITER', 'ADMIN', 'TECH_INTERVIEWER']), async (req: AuthenticatedRequest, res) => {
   const { applicationId } = req.params;
 
   try {
@@ -220,6 +238,7 @@ candidatesRouter.get('/detail/:applicationId', async (req, res) => {
         candidate: true,
         job: {
           include: {
+            company: true,
             assessmentTemplate: true
           }
         },
@@ -238,6 +257,11 @@ candidatesRouter.get('/detail/:applicationId', async (req, res) => {
 
     if (!application) {
       return res.status(404).json({ success: false, error: 'Candidate application not found' });
+    }
+
+    const isSuperAdmin = req.user?.role === 'ADMIN' && !req.user?.companyId;
+    if (!isSuperAdmin && req.user?.companyId && application.job.companyId !== req.user.companyId) {
+      return res.status(403).json({ success: false, error: 'Forbidden: You do not have access to this candidate application.' });
     }
 
     const latestAttempt = application.attempts[0] || null;
@@ -425,16 +449,40 @@ candidatesRouter.get('/detail/:applicationId', async (req, res) => {
 /**
  * Register Candidate & Apply for Job (with Resume Upload)
  */
-candidatesRouter.post('/apply', upload.single('resume'), async (req, res) => {
+candidatesRouter.post('/apply', handleResumeUpload, async (req, res) => {
   const { name, email, phone, jobId } = req.body;
   const file = req.file;
 
   try {
     if (!name || !email || !jobId) {
+      if (file) await fs.promises.unlink(file.path).catch(() => {});
       return res.status(400).json({ success: false, error: 'Name, email, and jobId are required.' });
     }
 
-    let candidate = await prisma.candidate.findUnique({ where: { email } });
+    const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const normalizedEmail = String(email).trim().toLowerCase();
+    if (!EMAIL_REGEX.test(normalizedEmail)) {
+      if (file) await fs.promises.unlink(file.path).catch(() => {});
+      return res.status(400).json({ success: false, error: 'Invalid email address format.' });
+    }
+
+    const trimmedName = String(name).trim();
+    if (trimmedName.length < 2) {
+      if (file) await fs.promises.unlink(file.path).catch(() => {});
+      return res.status(400).json({ success: false, error: 'Candidate name must be at least 2 characters long.' });
+    }
+
+    if (file) {
+      try {
+        const buffer = await fs.promises.readFile(file.path);
+        storageService.validateFileContent(buffer, file.originalname);
+      } catch (validationErr: any) {
+        await fs.promises.unlink(file.path).catch(() => {});
+        return res.status(400).json({ success: false, error: validationErr.message });
+      }
+    }
+
+    let candidate = await prisma.candidate.findUnique({ where: { email: normalizedEmail } });
 
     if (!candidate) {
       candidate = await prisma.candidate.create({
@@ -460,7 +508,7 @@ candidatesRouter.post('/apply', upload.single('resume'), async (req, res) => {
     if (!job) return res.status(404).json({ success: false, error: 'Job not found' });
 
     // Generate unique cryptographically secure assessment token
-    const token = `cand-${Math.random().toString(36).substr(2, 9)}-${Date.now().toString(36)}`;
+    const token = `cand-${crypto.randomBytes(16).toString('hex')}`;
     const tokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
     const application = await prisma.jobApplication.create({
@@ -506,7 +554,7 @@ candidatesRouter.post('/apply', upload.single('resume'), async (req, res) => {
 /**
  * Recruiter Action: Bulk CSV Candidate Invitation Dispatcher
  */
-candidatesRouter.post('/bulk-invite', async (req, res) => {
+candidatesRouter.post('/bulk-invite', authenticateToken, requireRole(['RECRUITER', 'ADMIN']), async (req: AuthenticatedRequest, res) => {
   const { jobId, candidates } = req.body;
 
   if (!jobId || !Array.isArray(candidates) || candidates.length === 0) {
@@ -516,6 +564,11 @@ candidatesRouter.post('/bulk-invite', async (req, res) => {
   try {
     const job = await prisma.job.findUnique({ where: { id: jobId } });
     if (!job) return res.status(404).json({ success: false, error: 'Job opening not found' });
+
+    const isSuperAdmin = req.user?.role === 'ADMIN' && !req.user?.companyId;
+    if (!isSuperAdmin && req.user?.companyId && job.companyId !== req.user.companyId) {
+      return res.status(403).json({ success: false, error: 'Forbidden: You do not own this job opening.' });
+    }
 
     const host = req.get('host') || 'localhost:3000';
     const baseUrl = `http://${host.replace(':5000', ':3000')}`;
@@ -535,7 +588,7 @@ candidatesRouter.post('/bulk-invite', async (req, res) => {
         });
       }
 
-      const token = `cand-${Math.random().toString(36).substr(2, 9)}-${Date.now().toString(36)}`;
+      const token = `cand-${crypto.randomBytes(16).toString('hex')}`;
       const tokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
       const app = await prisma.jobApplication.create({
@@ -572,11 +625,15 @@ candidatesRouter.post('/bulk-invite', async (req, res) => {
 });
 
 /**
- * Recruiter Action: Export Candidates Roster as CSV File
+ * Recruiter Action: Export Candidates Roster as CSV File (Scoped)
  */
-candidatesRouter.get('/export-csv', async (req, res) => {
+candidatesRouter.get('/export-csv', authenticateToken, requireRole(['RECRUITER', 'ADMIN']), async (req: AuthenticatedRequest, res) => {
   try {
+    const isSuperAdmin = req.user?.role === 'ADMIN' && !req.user?.companyId;
+    const whereClause = isSuperAdmin ? {} : { job: { companyId: req.user?.companyId || undefined } };
+
     const applications = await prisma.jobApplication.findMany({
+      where: whereClause,
       include: {
         candidate: true,
         job: true,
@@ -622,11 +679,24 @@ candidatesRouter.get('/export-csv', async (req, res) => {
 /**
  * Recruiter Action: Update Application Status (SHORTLISTED, HR_INTERVIEW, REJECTED, etc.)
  */
-candidatesRouter.patch('/:applicationId/status', async (req, res) => {
+candidatesRouter.patch('/:applicationId/status', authenticateToken, requireRole(['RECRUITER', 'ADMIN']), async (req: AuthenticatedRequest, res) => {
   const { applicationId } = req.params;
   const { status } = req.body;
 
   try {
+    const existingApp = await prisma.jobApplication.findUnique({
+      where: { id: applicationId },
+      include: { job: true }
+    });
+    if (!existingApp) {
+      return res.status(404).json({ success: false, error: 'Application not found' });
+    }
+
+    const isSuperAdmin = req.user?.role === 'ADMIN' && !req.user?.companyId;
+    if (!isSuperAdmin && req.user?.companyId && existingApp.job.companyId !== req.user.companyId) {
+      return res.status(403).json({ success: false, error: 'Forbidden: You do not own this application.' });
+    }
+
     const application = await prisma.jobApplication.update({
       where: { id: applicationId },
       data: { status },
@@ -685,7 +755,7 @@ candidatesRouter.patch('/:applicationId/status', async (req, res) => {
 /**
  * Resend Invitation Email to Candidate
  */
-candidatesRouter.post('/:applicationId/resend-invite', async (req, res) => {
+candidatesRouter.post('/:applicationId/resend-invite', authenticateToken, requireRole(['RECRUITER', 'ADMIN']), async (req: AuthenticatedRequest, res) => {
   const { applicationId } = req.params;
 
   try {
@@ -695,6 +765,11 @@ candidatesRouter.post('/:applicationId/resend-invite', async (req, res) => {
     });
 
     if (!application) return res.status(404).json({ success: false, error: 'Application not found' });
+
+    const isSuperAdmin = req.user?.role === 'ADMIN' && !req.user?.companyId;
+    if (!isSuperAdmin && req.user?.companyId && application.job.companyId !== req.user.companyId) {
+      return res.status(403).json({ success: false, error: 'Forbidden: You do not own this application.' });
+    }
 
     const host = req.get('host') || 'localhost:3000';
     const baseUrl = `http://${host.replace(':5000', ':3000')}`;
@@ -716,7 +791,7 @@ candidatesRouter.post('/:applicationId/resend-invite', async (req, res) => {
 /**
  * Recruiter Action: Re-parse uploaded PDF resume and re-evaluate skill match
  */
-candidatesRouter.post('/:applicationId/reparse-resume', async (req, res) => {
+candidatesRouter.post('/:applicationId/reparse-resume', authenticateToken, requireRole(['RECRUITER', 'ADMIN']), async (req: AuthenticatedRequest, res) => {
   const { applicationId } = req.params;
 
   try {
@@ -734,6 +809,12 @@ candidatesRouter.post('/:applicationId/reparse-resume', async (req, res) => {
     });
 
     if (!application) return res.status(404).json({ success: false, error: 'Application not found' });
+
+    const isSuperAdmin = req.user?.role === 'ADMIN' && !req.user?.companyId;
+    if (!isSuperAdmin && req.user?.companyId && application.job.companyId !== req.user.companyId) {
+      return res.status(403).json({ success: false, error: 'Forbidden: You do not own this application.' });
+    }
+
     if (!application.candidate.resumeUrl) {
       return res.status(400).json({ success: false, error: 'Candidate has no uploaded resume file.' });
     }
@@ -796,10 +877,21 @@ candidatesRouter.post('/:applicationId/reparse-resume', async (req, res) => {
 /**
  * Get Team Recruiter Notes for Application
  */
-candidatesRouter.get('/:applicationId/notes', async (req, res) => {
+candidatesRouter.get('/:applicationId/notes', authenticateToken, requireRole(['RECRUITER', 'ADMIN', 'TECH_INTERVIEWER']), async (req: AuthenticatedRequest, res) => {
   const { applicationId } = req.params;
 
   try {
+    const app = await prisma.jobApplication.findUnique({
+      where: { id: applicationId },
+      include: { job: true }
+    });
+    if (!app) return res.status(404).json({ success: false, error: 'Application not found' });
+
+    const isSuperAdmin = req.user?.role === 'ADMIN' && !req.user?.companyId;
+    if (!isSuperAdmin && req.user?.companyId && app.job.companyId !== req.user.companyId) {
+      return res.status(403).json({ success: false, error: 'Forbidden: You do not own this application.' });
+    }
+
     const notes = await prisma.recruiterNote.findMany({
       where: { applicationId },
       orderBy: { createdAt: 'desc' },
@@ -813,7 +905,7 @@ candidatesRouter.get('/:applicationId/notes', async (req, res) => {
 /**
  * Add Recruiter Team Note & Star Rating
  */
-candidatesRouter.post('/:applicationId/notes', async (req, res) => {
+candidatesRouter.post('/:applicationId/notes', authenticateToken, requireRole(['RECRUITER', 'ADMIN', 'TECH_INTERVIEWER']), async (req: AuthenticatedRequest, res) => {
   const { applicationId } = req.params;
   const { authorName, rating, comment } = req.body;
 
@@ -822,10 +914,21 @@ candidatesRouter.post('/:applicationId/notes', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Note comment is required' });
     }
 
+    const app = await prisma.jobApplication.findUnique({
+      where: { id: applicationId },
+      include: { job: true }
+    });
+    if (!app) return res.status(404).json({ success: false, error: 'Application not found' });
+
+    const isSuperAdmin = req.user?.role === 'ADMIN' && !req.user?.companyId;
+    if (!isSuperAdmin && req.user?.companyId && app.job.companyId !== req.user.companyId) {
+      return res.status(403).json({ success: false, error: 'Forbidden: You do not own this application.' });
+    }
+
     const note = await prisma.recruiterNote.create({
       data: {
         applicationId,
-        authorName: authorName || 'Hiring Recruiter',
+        authorName: authorName || req.user?.name || 'Hiring Recruiter',
         rating: rating || 5,
         comment,
       }
@@ -840,7 +943,7 @@ candidatesRouter.post('/:applicationId/notes', async (req, res) => {
 /**
  * Recruiter Action: Reset Assessment Attempt (Allow Candidate Retake)
  */
-candidatesRouter.post('/:applicationId/reset-attempt', async (req, res) => {
+candidatesRouter.post('/:applicationId/reset-attempt', authenticateToken, requireRole(['RECRUITER', 'ADMIN']), async (req: AuthenticatedRequest, res) => {
   const { applicationId } = req.params;
 
   try {
@@ -851,8 +954,13 @@ candidatesRouter.post('/:applicationId/reset-attempt', async (req, res) => {
 
     if (!application) return res.status(404).json({ success: false, error: 'Application not found' });
 
+    const isSuperAdmin = req.user?.role === 'ADMIN' && !req.user?.companyId;
+    if (!isSuperAdmin && req.user?.companyId && application.job.companyId !== req.user.companyId) {
+      return res.status(403).json({ success: false, error: 'Forbidden: You do not own this application.' });
+    }
+
     // Generate new token & extend expiration
-    const newToken = `cand-${Math.random().toString(36).substr(2, 9)}-${Date.now().toString(36)}`;
+    const newToken = `cand-${crypto.randomBytes(16).toString('hex')}`;
     const newExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
     await prisma.jobApplication.update({
@@ -866,6 +974,8 @@ candidatesRouter.post('/:applicationId/reset-attempt', async (req, res) => {
 
     await prisma.auditLog.create({
       data: {
+        userId: req.user?.id,
+        userName: req.user?.name,
         action: 'ASSESSMENT_RETEST_GRANTED',
         entity: 'JobApplication',
         details: `Granted retake permission to candidate ${application.candidate.name} for job ${application.job.title}.`,
@@ -892,13 +1002,24 @@ candidatesRouter.post('/:applicationId/reset-attempt', async (req, res) => {
 /**
  * Recruiter Action: Schedule HR Interview & Send Invitation
  */
-candidatesRouter.post('/:applicationId/schedule-interview', async (req, res) => {
+candidatesRouter.post('/:applicationId/schedule-interview', authenticateToken, requireRole(['RECRUITER', 'ADMIN']), async (req: AuthenticatedRequest, res) => {
   const { applicationId } = req.params;
   const { interviewScheduledAt, interviewLink } = req.body;
 
   try {
     if (!interviewScheduledAt) {
       return res.status(400).json({ success: false, error: 'interviewScheduledAt date is required' });
+    }
+
+    const existingApp = await prisma.jobApplication.findUnique({
+      where: { id: applicationId },
+      include: { job: true }
+    });
+    if (!existingApp) return res.status(404).json({ success: false, error: 'Application not found' });
+
+    const isSuperAdmin = req.user?.role === 'ADMIN' && !req.user?.companyId;
+    if (!isSuperAdmin && req.user?.companyId && existingApp.job.companyId !== req.user.companyId) {
+      return res.status(403).json({ success: false, error: 'Forbidden: You do not own this application.' });
     }
 
     const application = await prisma.jobApplication.update({
@@ -934,6 +1055,8 @@ candidatesRouter.post('/:applicationId/schedule-interview', async (req, res) => 
 
     await prisma.auditLog.create({
       data: {
+        userId: req.user?.id,
+        userName: req.user?.name,
         action: 'HR_INTERVIEW_SCHEDULED',
         entity: 'JobApplication',
         details: `Scheduled HR interview for candidate ${application.candidate.name} on ${scheduledDateStr}`,

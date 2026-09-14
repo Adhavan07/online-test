@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 
 export interface FileStorageResult {
   publicUrl: string;
@@ -37,36 +38,103 @@ export class StorageService {
   }
 
   /**
-   * Resolves absolute local path from either a full path or a relative URL like /uploads/resumes/xxx.pdf
+   * Validate file buffer for allowed extensions, maximum size, and magic bytes
    */
-  public resolveLocalPath(filePathOrUrl: string): string {
-    if (path.isAbsolute(filePathOrUrl) && fs.existsSync(filePathOrUrl)) {
-      return filePathOrUrl;
+  public validateFileContent(buffer: Buffer, originalName: string): void {
+    const MAX_SIZE = 5 * 1024 * 1024; // 5MB strict limit
+    if (buffer.length > MAX_SIZE) {
+      throw new Error('File size exceeds maximum allowed limit of 5MB.');
     }
 
-    // Clean leading slash or URL segment
-    const normalized = filePathOrUrl.replace(/^\/?(uploads\/)?/, '');
-    const fullPath = path.join(this.uploadsDir, normalized);
-    return fullPath;
+    // Check for dangerous executable / shell headers
+    if (buffer.length >= 2) {
+      // Windows PE executable (MZ)
+      if (buffer[0] === 0x4D && buffer[1] === 0x5A) {
+        throw new Error('Executable binary files are strictly prohibited.');
+      }
+      // Shell script header (#! in ascii)
+      if (buffer[0] === 0x23 && buffer[1] === 0x21) {
+        throw new Error('Script execution files are strictly prohibited.');
+      }
+    }
+    if (buffer.length >= 4) {
+      // Linux ELF binary (\x7fELF)
+      if (buffer[0] === 0x7F && buffer[1] === 0x45 && buffer[2] === 0x4C && buffer[3] === 0x46) {
+        throw new Error('Executable ELF binary files are strictly prohibited.');
+      }
+    }
+
+    const ext = path.extname(originalName).toLowerCase();
+    const ALLOWED_EXTS = ['.pdf', '.docx', '.doc', '.txt', '.jpg', '.jpeg', '.png'];
+    if (!ALLOWED_EXTS.includes(ext)) {
+      throw new Error(`File extension ${ext} is not allowed.`);
+    }
+
+    // Magic bytes verification
+    if (ext === '.pdf') {
+      // PDF files must begin with '%PDF' (\x25\x50\x44\x46)
+      const isPdfHeader = buffer.length >= 4 &&
+        buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46;
+      if (!isPdfHeader) {
+        throw new Error('Invalid or corrupt PDF file (disguised content detected).');
+      }
+    } else if (ext === '.docx') {
+      // DOCX files are zip archives starting with 'PK\x03\x04' (\x50\x4B\x03\x04)
+      const isZipHeader = buffer.length >= 4 &&
+        buffer[0] === 0x50 && buffer[1] === 0x4B && buffer[2] === 0x03 && buffer[3] === 0x04;
+      if (!isZipHeader) {
+        throw new Error('Invalid or corrupt DOCX file (disguised content detected).');
+      }
+    }
   }
 
   /**
-   * Save a binary buffer to storage
+   * Resolves absolute local path with strict path-traversal prevention
+   */
+  public resolveLocalPath(filePathOrUrl: string): string {
+    const rootUploads = path.resolve(this.uploadsDir);
+
+    // If path is absolute, enforce that it is inside rootUploads
+    if (path.isAbsolute(filePathOrUrl)) {
+      const resolved = path.resolve(filePathOrUrl);
+      if (!resolved.startsWith(rootUploads)) {
+        throw new Error('Access denied: Path traversal detected.');
+      }
+      return resolved;
+    }
+
+    // Block relative traversal sequences
+    if (filePathOrUrl.includes('..')) {
+      throw new Error('Access denied: Path traversal detected.');
+    }
+
+    // Clean leading slash or URL segment
+    const normalized = filePathOrUrl.replace(/^(\/|\\)?(uploads(\/|\\))?/, '');
+    const resolved = path.resolve(rootUploads, normalized);
+
+    if (!resolved.startsWith(rootUploads)) {
+      throw new Error('Access denied: Path traversal detected.');
+    }
+    return resolved;
+  }
+
+  /**
+   * Save a binary buffer to storage with security checks
    */
   public async saveBuffer(
     buffer: Buffer,
     originalName: string,
     subfolder: 'resumes' | 'proctoring' | 'badges' | 'temp' = 'resumes'
   ): Promise<FileStorageResult> {
-    const ext = path.extname(originalName) || '.bin';
-    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    // Validate buffer before persisting
+    this.validateFileContent(buffer, originalName);
+
+    const ext = path.extname(originalName).toLowerCase() || '.bin';
     const sanitizedBase = path.basename(originalName, ext).replace(/[^a-zA-Z0-9_-]/g, '_');
-    const finalFilename = `${sanitizedBase}-${uniqueSuffix}${ext}`;
+    const finalFilename = `${sanitizedBase}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}${ext}`;
 
     if (this.storageType === 's3' && process.env.S3_BUCKET) {
-      // S3/MinIO compatible object store upload
       const s3Key = `${subfolder}/${finalFilename}`;
-      // In production S3 mode, upload via AWS SDK or S3 Client
       return {
         publicUrl: `https://${process.env.S3_BUCKET}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${s3Key}`,
         filePath: s3Key,

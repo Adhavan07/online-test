@@ -133,6 +133,7 @@ export const CandidateFlow: React.FC<CandidateFlowProps> = ({ token }) => {
       {step === 'PLAYER' && (
         <AssessmentPlayer
           attemptId={attemptId}
+          token={token}
           jobTitle={assessmentData.job.title}
           onAssessmentFinish={handleAssessmentFinish}
         />

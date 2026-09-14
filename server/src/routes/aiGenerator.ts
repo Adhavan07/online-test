@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
+import { authenticateToken, requireRole, AuthenticatedRequest } from '../middleware/auth.js';
 
 export const aiGeneratorRouter = Router();
 
@@ -8,7 +9,7 @@ export const aiGeneratorRouter = Router();
  * Accepts topic, difficulty, roleCategory, questionType, sectionId
  * Generates structured question prompt, options, code templates, and test cases
  */
-aiGeneratorRouter.post('/generate-questions', async (req, res) => {
+aiGeneratorRouter.post('/generate-questions', authenticateToken, requireRole(['RECRUITER', 'ADMIN']), async (req: AuthenticatedRequest, res) => {
   const { sectionId, topic, difficulty = 'MEDIUM', count = 2, questionType = 'MCQ_SINGLE' } = req.body;
 
   if (!sectionId || !topic) {

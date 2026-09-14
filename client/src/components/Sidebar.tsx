@@ -1,13 +1,16 @@
 import React from 'react';
 import { 
   LayoutDashboard, Users, Briefcase, FileText, BarChart3, 
-  Settings, ShieldCheck, UserCheck, ChevronRight, Sparkles, Network
+  Settings, ShieldCheck, UserCheck, ChevronRight, Sparkles, Network, LogOut
 } from 'lucide-react';
+import { UserSession } from '../lib/auth';
 
 interface SidebarProps {
   activeView: string; // 'dashboard' | 'candidates' | 'jobs' | 'assessments' | 'analytics' | 'admin'
   setActiveView: (view: string) => void;
   onOpenCreateJob: () => void;
+  currentUser?: UserSession | null;
+  onLogout?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -112,16 +115,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* User Profile / Organization Footer */}
       <div className="p-3 border-t border-zinc-200 bg-zinc-100/50">
         <div className="flex items-center justify-between p-2 rounded bg-white border border-zinc-200/80">
-          <div className="flex items-center space-x-2.5 truncate">
-            <div className="w-7 h-7 rounded bg-blue-600/10 text-blue-700 font-bold text-xs flex items-center justify-center border border-blue-200 font-mono">
-              HK
+          <div className="flex items-center space-x-2.5 min-w-0">
+            <div className="w-7 h-7 rounded bg-blue-600/10 text-blue-700 font-bold text-xs flex items-center justify-center border border-blue-200 font-mono shrink-0">
+              {currentUser?.name ? currentUser.name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase() : 'TS'}
             </div>
-            <div className="truncate">
-              <div className="text-xs font-semibold text-zinc-900 truncate">Hiring Manager</div>
-              <div className="text-[10px] text-zinc-500 truncate">Enterprise Recruiting</div>
+            <div className="truncate min-w-0">
+              <div className="text-xs font-semibold text-zinc-900 truncate">
+                {currentUser?.name || 'Authorized Recruiter'}
+              </div>
+              <div className="text-[10px] text-zinc-500 font-mono uppercase flex items-center space-x-1">
+                <span className="text-emerald-600 font-bold">●</span>
+                <span>{currentUser?.role || 'RECRUITER'}</span>
+              </div>
             </div>
           </div>
-          <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="System Connected" />
+
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded transition cursor-pointer shrink-0 ml-1"
+              title="Sign Out"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
 
