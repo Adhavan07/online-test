@@ -25,6 +25,7 @@ export const AssessmentPlayer: React.FC<AssessmentPlayerProps> = ({
   const [recentViolationMsg, setRecentViolationMsg] = useState<string | null>(null);
   const [isScreenSharePaused, setIsScreenSharePaused] = useState<boolean>(false);
   const [isCameraDisconnected, setIsCameraDisconnected] = useState<boolean>(false);
+  const [isFullscreenExited, setIsFullscreenExited] = useState<boolean>(false);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const selectedOptionIdsRef = useRef<string[]>(selectedOptionIds);
@@ -161,9 +162,16 @@ export const AssessmentPlayer: React.FC<AssessmentPlayerProps> = ({
       }
     };
 
+    let hasEnteredFullscreen = Boolean(document.fullscreenElement);
     const handleFullscreenChange = () => {
       if (!document.fullscreenElement) {
-        logProctorEvent('FULLSCREEN_EXIT', 'Candidate exited full-screen proctoring mode.');
+        if (hasEnteredFullscreen) {
+          logProctorEvent('FULLSCREEN_EXIT', 'Candidate exited full-screen proctoring mode.');
+        }
+        setIsFullscreenExited(true);
+      } else {
+        hasEnteredFullscreen = true;
+        setIsFullscreenExited(false);
       }
     };
 
@@ -335,6 +343,17 @@ export const AssessmentPlayer: React.FC<AssessmentPlayerProps> = ({
 
   const isUrgent = timeLeft <= 10;
 
+  const requestReenterFullscreen = async () => {
+    try {
+      if (document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen();
+        setIsFullscreenExited(false);
+      }
+    } catch (err) {
+      console.warn('Fullscreen request failed:', err);
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-4 select-none text-zinc-900 py-6 relative">
       
@@ -350,6 +369,29 @@ export const AssessmentPlayer: React.FC<AssessmentPlayerProps> = ({
           </div>
         ))}
       </div>
+
+      {/* Fullscreen Interruption Warning Modal */}
+      {isFullscreenExited && (
+        <div className="fixed inset-0 z-50 bg-zinc-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-amber-200 rounded-xl max-w-md w-full p-6 shadow-2xl space-y-4 text-center">
+            <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto">
+              <AlertTriangle className="h-6 w-6" />
+            </div>
+            <div className="space-y-1.5">
+              <h3 className="text-base font-bold text-zinc-900">Fullscreen Mode Exited</h3>
+              <p className="text-xs text-zinc-600 leading-relaxed">
+                This assessment requires full-screen proctoring mode. Your exit event has been recorded in the integrity audit log. Please return to fullscreen immediately.
+              </p>
+            </div>
+            <button
+              onClick={requestReenterFullscreen}
+              className="w-full bg-amber-600 hover:bg-amber-700 text-white font-semibold py-2.5 rounded text-xs transition shadow-sm"
+            >
+              Re-enter Fullscreen Mode
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Screen Sharing Interruption Blocking Modal */}
       {isScreenSharePaused && (

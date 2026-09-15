@@ -188,6 +188,31 @@ authRouter.post('/team/invite', authenticateToken, requireRole(['ADMIN', 'RECRUI
       return res.status(400).json({ success: false, error: `Invalid role: ${role}. Allowed roles: ${ALLOWED_ROLES.join(', ')}` });
     }
 
+    const callerRole = (req.user?.role || '').toUpperCase();
+
+    // Prevent Privilege Escalation:
+    // RECRUITER can ONLY invite lower/equal roles: RECRUITER or TECH_INTERVIEWER (never ADMIN or HR_ADMIN)
+    if (callerRole === 'RECRUITER') {
+      const RECRUITER_ALLOWED_INVITES = ['RECRUITER', 'TECH_INTERVIEWER'];
+      if (!RECRUITER_ALLOWED_INVITES.includes(normalizedRole)) {
+        return res.status(403).json({
+          success: false,
+          error: `Forbidden: Recruiters cannot invite or create '${normalizedRole}' accounts. Allowed roles: ${RECRUITER_ALLOWED_INVITES.join(', ')}`,
+        });
+      }
+    }
+
+    // HR_ADMIN can invite HR_ADMIN, RECRUITER, TECH_INTERVIEWER, but CANNOT create platform ADMIN
+    if (callerRole === 'HR_ADMIN') {
+      const HR_ALLOWED_INVITES = ['HR_ADMIN', 'RECRUITER', 'TECH_INTERVIEWER'];
+      if (!HR_ALLOWED_INVITES.includes(normalizedRole)) {
+        return res.status(403).json({
+          success: false,
+          error: `Forbidden: HR Admins cannot invite or create '${normalizedRole}' accounts. Allowed roles: ${HR_ALLOWED_INVITES.join(', ')}`,
+        });
+      }
+    }
+
     const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (existing) {
       return res.status(400).json({ success: false, error: 'User with this email already exists in workspace.' });

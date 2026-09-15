@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { CodeExecutionService } from '../services/CodeExecutionService.js';
 import fs from 'fs';
 import path from 'path';
@@ -6,6 +6,15 @@ import os from 'os';
 
 describe('PHASE 10: Code Execution Sandbox & Worker Isolation Suite', () => {
   const sandboxDir = path.join(os.tmpdir(), 'techscreen_sandbox');
+  const originalEnable = process.env.ENABLE_CODE_EXECUTION;
+
+  beforeAll(() => {
+    process.env.ENABLE_CODE_EXECUTION = 'true';
+  });
+
+  afterAll(() => {
+    process.env.ENABLE_CODE_EXECUTION = originalEnable;
+  });
 
   it('1. should successfully execute valid JavaScript algorithm against test cases', async () => {
     const code = `
@@ -196,5 +205,28 @@ def solution(nums):
     const afterFiles = fs.readdirSync(sandboxDir);
     // Files created for this execution should have been removed
     expect(afterFiles.length).toBeLessThanOrEqual(initialFiles.length);
+  });
+
+  it('10. should safely block execution and queue submissions when ENABLE_CODE_EXECUTION is false (MVP Hardening)', async () => {
+    process.env.ENABLE_CODE_EXECUTION = 'false';
+
+    const code = `
+      function solution(input) {
+        return input * 2;
+      }
+    `;
+    const testCases = JSON.stringify([
+      { input: '21', expectedOutput: '42' }
+    ]);
+
+    const result = await CodeExecutionService.executeCode(code, testCases, 'javascript');
+
+    expect(result.disabled).toBe(true);
+    expect(result.passCount).toBe(0);
+    expect(result.testResults[0].passed).toBe(false);
+    expect(result.testResults[0].actual).toMatch(/Execution Disabled: Public code execution is disabled for security hardening/i);
+
+    // Reset back to true for safety
+    process.env.ENABLE_CODE_EXECUTION = 'true';
   });
 });

@@ -24,7 +24,7 @@ Before running the platform, ensure the following tools are installed:
    PORT=5000
    DATABASE_URL=postgresql://postgres:postgrespassword@localhost:5432/techscreen_pro?schema=public
    REDIS_URL=redis://localhost:6379
-   JWT_SECRET=techscreen-enterprise-secret-change-in-prod-2026-secure
+   JWT_SECRET=your-secure-random-jwt-secret-at-least-32-chars
    JWT_EXPIRES_IN=8h
    STORAGE_DRIVER=local
    UPLOAD_DIR=./uploads

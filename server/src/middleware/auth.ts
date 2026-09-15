@@ -32,6 +32,55 @@ export function getJwtSecret(): string {
   return secret;
 }
 
+export function validateStartupConfig(): { valid: boolean; error?: string } {
+  const secret = process.env.JWT_SECRET;
+  const INSECURE_DEFAULTS = [
+    'techscreen-enterprise-secret-change-in-prod-2026',
+    'techscreen-secret-jwt-key',
+    'default-dev-secret',
+    'secret',
+    'changeme',
+    '123456',
+    'password',
+    'admin',
+  ];
+
+  if (process.env.NODE_ENV === 'production') {
+    if (!secret) {
+      return {
+        valid: false,
+        error: 'FATAL CONFIGURATION ERROR: JWT_SECRET environment variable is missing in production.',
+      };
+    }
+    if (INSECURE_DEFAULTS.includes(secret)) {
+      return {
+        valid: false,
+        error: 'FATAL CONFIGURATION ERROR: JWT_SECRET cannot be a known insecure default in production.',
+      };
+    }
+    if (secret.length < 32) {
+      return {
+        valid: false,
+        error: 'FATAL CONFIGURATION ERROR: JWT_SECRET must be at least 32 characters long in production.',
+      };
+    }
+  }
+
+  return { valid: true };
+}
+
+export function enforceStartupConfig(): void {
+  const check = validateStartupConfig();
+  if (!check.valid) {
+    console.error('====================================================');
+    console.error('CRITICAL SERVER CONFIGURATION ERROR:');
+    console.error(check.error);
+    console.error('Port listening aborted. Refusing to start in production without secure configuration.');
+    console.error('====================================================');
+    process.exit(1);
+  }
+}
+
 export interface AuthUser {
   id: string;
   email: string;
@@ -103,8 +152,9 @@ export function requireRole(allowedRoles: string[]) {
     const userRole = (req.user.role || '').toUpperCase();
     const normalizedAllowed = allowedRoles.map(r => r.toUpperCase());
 
-    // ADMIN has superuser privileges across all enterprise admin actions
-    const hasPermission = normalizedAllowed.includes(userRole) || userRole === 'ADMIN' || userRole === 'HR_ADMIN';
+    // ADMIN has platform-wide administration across administrative actions (not candidate assessment routes)
+    // HR_ADMIN is company-level administration and only has access if explicitly permitted
+    const hasPermission = normalizedAllowed.includes(userRole) || (userRole === 'ADMIN' && !normalizedAllowed.includes('CANDIDATE'));
 
     if (!hasPermission) {
       return res.status(403).json({
@@ -118,5 +168,6 @@ export function requireRole(allowedRoles: string[]) {
 }
 
 export const requireAdmin = requireRole(['ADMIN']);
-export const requireRecruiter = requireRole(['RECRUITER', 'ADMIN']);
-export const requireInterviewer = requireRole(['TECH_INTERVIEWER', 'RECRUITER', 'ADMIN']);
+export const requireHrAdmin = requireRole(['HR_ADMIN', 'ADMIN']);
+export const requireRecruiter = requireRole(['RECRUITER', 'HR_ADMIN', 'ADMIN']);
+export const requireInterviewer = requireRole(['TECH_INTERVIEWER', 'RECRUITER', 'HR_ADMIN', 'ADMIN']);

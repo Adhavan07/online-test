@@ -11,6 +11,7 @@
     "build:client": "vite build client",
     "build": "npm run build:server && npm run build:client",
     "db:push": "prisma db push --schema=server/src/prisma/schema.prisma",
+    "db:migrate": "prisma migrate deploy --schema=server/src/prisma/schema.prisma",
     "db:seed": "tsx server/src/prisma/seed.ts",
     "db:studio": "prisma studio --schema=server/src/prisma/schema.prisma",
     "db:migrate:sqlite-to-pg": "tsx server/src/prisma/import-sqlite-to-pg.ts",

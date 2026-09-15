@@ -121,6 +121,9 @@ model JobApplication {
   isOtpVerified        Boolean            @default(false)
   interviewScheduledAt DateTime?
   interviewLink        String?
+  resumeUrl            String?
+  resumeFileName       String?
+  resumeParsedText     String?
   resumeMatchScore     Float?             // 0-100% match against job requirements
   resumeParsedSkills   String?            // JSON array of detected candidate skills
   rankingScore         Float?             // Composite score: Tech(60%) + Resume(30%) - Risk Penalty(10%)

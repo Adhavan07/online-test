@@ -131,9 +131,9 @@ adminRouter.post('/templates', async (req: AuthenticatedRequest, res) => {
 });
 
 /**
- * Get Audit Logs
+ * Get Audit Logs (ADMIN ONLY)
  */
-adminRouter.get('/audit-logs', async (req: AuthenticatedRequest, res) => {
+adminRouter.get('/audit-logs', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res) => {
   try {
     const logs = await prisma.auditLog.findMany({
       orderBy: { createdAt: 'desc' },
@@ -146,9 +146,9 @@ adminRouter.get('/audit-logs', async (req: AuthenticatedRequest, res) => {
 });
 
 /**
- * Get Email Logs
+ * Get Email Logs (ADMIN ONLY)
  */
-adminRouter.get('/email-logs', async (req: AuthenticatedRequest, res) => {
+adminRouter.get('/email-logs', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res) => {
   try {
     const logs = await prisma.emailLog.findMany({
       orderBy: { sentAt: 'desc' },
@@ -163,7 +163,7 @@ adminRouter.get('/email-logs', async (req: AuthenticatedRequest, res) => {
 /**
  * Get Current SMTP Configuration (ADMIN ONLY - Sensitive)
  */
-adminRouter.get('/smtp-config', async (req: AuthenticatedRequest, res) => {
+adminRouter.get('/smtp-config', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res) => {
   try {
     const config = await EmailService.getSmtpConfig();
     res.json({ success: true, config });
@@ -175,7 +175,7 @@ adminRouter.get('/smtp-config', async (req: AuthenticatedRequest, res) => {
 /**
  * Save SMTP Configuration dynamically (ADMIN ONLY - Sensitive)
  */
-adminRouter.post('/smtp-config', async (req: AuthenticatedRequest, res) => {
+adminRouter.post('/smtp-config', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res) => {
   try {
     const { host, port, user, pass, from, secure, service } = req.body;
     const result = await EmailService.saveSmtpConfig({
@@ -207,7 +207,7 @@ adminRouter.post('/smtp-config', async (req: AuthenticatedRequest, res) => {
 /**
  * Send Live Test Email to verify SMTP setup (ADMIN ONLY)
  */
-adminRouter.post('/test-email', async (req: AuthenticatedRequest, res) => {
+adminRouter.post('/test-email', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res) => {
   try {
     const { recipientEmail } = req.body;
     if (!recipientEmail) {
@@ -224,7 +224,7 @@ adminRouter.post('/test-email', async (req: AuthenticatedRequest, res) => {
 /**
  * Resend Email from Log (ADMIN ONLY)
  */
-adminRouter.post('/email-logs/:id/resend', async (req: AuthenticatedRequest, res) => {
+adminRouter.post('/email-logs/:id/resend', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res) => {
   try {
     const log = await prisma.emailLog.findUnique({ where: { id: req.params.id } });
     if (!log) {

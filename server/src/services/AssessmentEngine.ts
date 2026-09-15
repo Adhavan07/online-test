@@ -1,8 +1,10 @@
+import fs from 'fs';
 import { prisma } from '../lib/prisma.js';
 import { ResumeMatchingService } from './ResumeMatchingService.js';
 import { EmailService } from './EmailService.js';
 import { NotificationService } from './NotificationService.js';
 import { CodeExecutionService } from './CodeExecutionService.js';
+import { storageService } from './StorageService.js';
 import { generateSecureOtp, hashOtp, verifyOtpCode } from '../lib/crypto.js';
 
 export class AssessmentEngine {
@@ -708,9 +710,29 @@ export class AssessmentEngine {
       jobSkillsRequired = ['Git', 'Linux', 'Docker', 'Kubernetes', 'CI/CD'];
     }
 
-    const candidateResumeText = `${attempt.application.candidate.name} ${attempt.application.candidate.resumeFileName || ''}`;
+    // Authoritative Resume Content Resolution:
+    // 1. Use application.resumeParsedText if available.
+    // 2. Otherwise parse on-demand from disk if resumeUrl exists.
+    // 3. NEVER use candidate name + filename as fake resume text!
+    let authoritativeResumeText = attempt.application.resumeParsedText || '';
+    if (!authoritativeResumeText) {
+      const resumeUrl = attempt.application.resumeUrl || attempt.application.candidate.resumeUrl;
+      if (resumeUrl) {
+        const fullPath = storageService.resolveLocalPath(resumeUrl);
+        if (fs.existsSync(fullPath)) {
+          authoritativeResumeText = await ResumeMatchingService.extractTextFromPdfFile(fullPath);
+          if (authoritativeResumeText) {
+            await prisma.jobApplication.update({
+              where: { id: attempt.application.id },
+              data: { resumeParsedText: authoritativeResumeText }
+            }).catch(() => {});
+          }
+        }
+      }
+    }
+
     const resumeMatch = ResumeMatchingService.evaluateResumeMatch(
-      candidateResumeText,
+      authoritativeResumeText,
       jobSkillsRequired
     );
 

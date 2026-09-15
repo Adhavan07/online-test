@@ -141,5 +141,84 @@ describe('PHASE 1: Authentication & RBAC Security Suite', () => {
       expect(res.status).toBe(401);
       expect(res.body.success).toBe(false);
     });
+
+    it('forbids RECRUITER from creating or inviting ADMIN accounts with 403', async () => {
+      const res = await request(app)
+        .post('/api/auth/team/invite')
+        .set('Authorization', `Bearer ${recruiterToken}`)
+        .send({
+          name: 'Privilege Escalation Attempt',
+          email: 'escalated.admin@acme.com',
+          role: 'ADMIN',
+        });
+      expect(res.status).toBe(403);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error).toMatch(/Recruiters cannot invite or create 'ADMIN'/i);
+    });
+
+    it('forbids RECRUITER from creating or inviting HR_ADMIN accounts with 403', async () => {
+      const res = await request(app)
+        .post('/api/auth/team/invite')
+        .set('Authorization', `Bearer ${recruiterToken}`)
+        .send({
+          name: 'Privilege Escalation Attempt 2',
+          email: 'escalated.hr@acme.com',
+          role: 'HR_ADMIN',
+        });
+      expect(res.status).toBe(403);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error).toMatch(/Recruiters cannot invite or create 'HR_ADMIN'/i);
+    });
+
+    it('forbids RECRUITER from accessing platform admin-only endpoints (/api/admin/smtp-config) with 403', async () => {
+      const res = await request(app)
+        .get('/api/admin/smtp-config')
+        .set('Authorization', `Bearer ${recruiterToken}`);
+      expect(res.status).toBe(403);
+      expect(res.body.success).toBe(false);
+    });
+
+    it('forbids TECH_INTERVIEWER from creating jobs with 403', async () => {
+      // Create a tech interviewer JWT
+      const jwt = (await import('jsonwebtoken')).default;
+      const { getJwtSecret } = await import('../middleware/auth.js');
+      const interviewerToken = jwt.sign(
+        { id: 'tech-interviewer-1', email: 'interviewer@acme.com', name: 'Interviewer', role: 'TECH_INTERVIEWER', companyId: 'some-company' },
+        getJwtSecret(),
+        { expiresIn: '1h' }
+      );
+
+      const res = await request(app)
+        .post('/api/jobs')
+        .set('Authorization', `Bearer ${interviewerToken}`)
+        .send({
+          title: 'Unauthorized Job',
+          skillsRequired: ['Git'],
+        });
+
+      expect(res.status).toBe(403);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error).toMatch(/Forbidden/i);
+    });
+
+    it('forbids CANDIDATE role from accessing recruiter APIs (/api/jobs, /api/candidates) with 403', async () => {
+      const jwt = (await import('jsonwebtoken')).default;
+      const { getJwtSecret } = await import('../middleware/auth.js');
+      const candidateToken = jwt.sign(
+        { id: 'cand-user-1', email: 'candidate@external.com', name: 'Candidate User', role: 'CANDIDATE', companyId: null },
+        getJwtSecret(),
+        { expiresIn: '1h' }
+      );
+
+      const jobsRes = await request(app)
+        .get('/api/jobs')
+        .set('Authorization', `Bearer ${candidateToken}`);
+      expect(jobsRes.status).toBe(403);
+
+      const candRes = await request(app)
+        .get('/api/candidates')
+        .set('Authorization', `Bearer ${candidateToken}`);
+      expect(candRes.status).toBe(403);
+    });
   });
 });

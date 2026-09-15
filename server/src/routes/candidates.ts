@@ -8,7 +8,7 @@ import { ResumeMatchingService } from '../services/ResumeMatchingService.js';
 import { EmailService } from '../services/EmailService.js';
 import { NotificationService } from '../services/NotificationService.js';
 import { storageService } from '../services/StorageService.js';
-import { authenticateToken, requireRole, AuthenticatedRequest } from '../middleware/auth.js';
+import { authenticateToken, optionalAuth, requireRole, AuthenticatedRequest } from '../middleware/auth.js';
 
 export const candidatesRouter = Router();
 
@@ -138,8 +138,9 @@ candidatesRouter.get('/', authenticateToken, requireRole(['RECRUITER', 'ADMIN', 
       }
 
       if (resumeMatchScore === null || resumeMatchScore === undefined) {
+        const candidateResumeText = app.resumeParsedText || '';
         const evalRes = ResumeMatchingService.evaluateResumeMatch(
-          `${app.candidate.name} ${app.candidate.resumeFileName || ''}`,
+          candidateResumeText,
           jobSkills
         );
         resumeMatchScore = evalRes.matchScore;
@@ -172,8 +173,8 @@ candidatesRouter.get('/', authenticateToken, requireRole(['RECRUITER', 'ADMIN', 
         name: app.candidate.name,
         email: app.candidate.email,
         phone: app.candidate.phone,
-        resumeUrl: app.candidate.resumeUrl,
-        resumeFileName: app.candidate.resumeFileName,
+        resumeUrl: (app.resumeUrl || app.candidate.resumeUrl) ? `/api/candidates/${app.id}/resume` : null,
+        resumeFileName: app.resumeFileName || app.candidate.resumeFileName,
         jobId: app.jobId,
         jobTitle: app.job.title,
         status: app.status,
@@ -318,8 +319,8 @@ candidatesRouter.get('/detail/:applicationId', authenticateToken, requireRole(['
           name: application.candidate.name,
           email: application.candidate.email,
           phone: application.candidate.phone,
-          resumeUrl: application.candidate.resumeUrl,
-          resumeFileName: application.candidate.resumeFileName,
+          resumeUrl: (application.resumeUrl || application.candidate.resumeUrl) ? `/api/candidates/${application.id}/resume` : null,
+          resumeFileName: application.resumeFileName || application.candidate.resumeFileName,
         },
         job: {
           title: application.job.title,
@@ -345,8 +346,9 @@ candidatesRouter.get('/detail/:applicationId', authenticateToken, requireRole(['
           }
 
           // If resume file exists on disk, deeply parse for full extracted details
-          if (application.candidate.resumeUrl) {
-            const fullPath = path.join(process.cwd(), application.candidate.resumeUrl.replace(/^\//, ''));
+          const resumePath = application.resumeUrl || application.candidate.resumeUrl;
+          if (resumePath) {
+            const fullPath = path.join(process.cwd(), resumePath.replace(/^\//, ''));
             if (fs.existsSync(fullPath)) {
               try {
                 const evalRes = await ResumeMatchingService.parseAndEvaluateResumeFile(
@@ -373,8 +375,9 @@ candidatesRouter.get('/detail/:applicationId', authenticateToken, requireRole(['
           }
 
           if (matchScore === null || matchScore === undefined) {
+            const candidateResumeText = application.resumeParsedText || '';
             const evalRes = ResumeMatchingService.evaluateResumeMatch(
-              `${application.candidate.name} ${application.candidate.resumeFileName || ''}`,
+              candidateResumeText,
               jobSkills
             );
             matchScore = evalRes.matchScore;
@@ -472,10 +475,12 @@ candidatesRouter.post('/apply', handleResumeUpload, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Candidate name must be at least 2 characters long.' });
     }
 
+    let parsedResumeText = '';
     if (file) {
       try {
         const buffer = await fs.promises.readFile(file.path);
         storageService.validateFileContent(buffer, file.originalname);
+        parsedResumeText = await ResumeMatchingService.extractTextFromPdfBuffer(buffer);
       } catch (validationErr: any) {
         await fs.promises.unlink(file.path).catch(() => {});
         return res.status(400).json({ success: false, error: validationErr.message });
@@ -494,22 +499,26 @@ candidatesRouter.post('/apply', handleResumeUpload, async (req, res) => {
           resumeFileName: file ? file.originalname : null,
         }
       });
-    } else if (file) {
-      candidate = await prisma.candidate.update({
-        where: { id: candidate.id },
-        data: {
-          resumeUrl: `/uploads/resumes/${file.filename}`,
-          resumeFileName: file.originalname,
-        }
-      });
     }
 
     const job = await prisma.job.findUnique({ where: { id: jobId } });
     if (!job) return res.status(404).json({ success: false, error: 'Job not found' });
 
-    // Generate unique cryptographically secure assessment token
-    const token = `cand-${crypto.randomBytes(16).toString('hex')}`;
+    // Generate 256-bit cryptographically secure assessment token
+    const token = `cand-${crypto.randomBytes(32).toString('hex')}`;
     const tokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    // Initial skill matching on parsed text if job has required skills
+    let initialMatchScore: number | null = null;
+    let initialMatchedSkills: string[] = [];
+    if (parsedResumeText && job.skillsRequired) {
+      try {
+        const requiredSkills = JSON.parse(job.skillsRequired);
+        const evalMatch = ResumeMatchingService.evaluateResumeMatch(parsedResumeText, requiredSkills);
+        initialMatchScore = evalMatch.matchScore;
+        initialMatchedSkills = evalMatch.matchedSkills;
+      } catch {}
+    }
 
     const application = await prisma.jobApplication.create({
       data: {
@@ -518,6 +527,11 @@ candidatesRouter.post('/apply', handleResumeUpload, async (req, res) => {
         status: 'INVITED',
         token,
         tokenExpiresAt,
+        resumeUrl: file ? `/uploads/resumes/${file.filename}` : null,
+        resumeFileName: file ? file.originalname : null,
+        resumeParsedText: parsedResumeText || null,
+        resumeMatchScore: initialMatchScore,
+        resumeParsedSkills: initialMatchedSkills.length > 0 ? JSON.stringify(initialMatchedSkills) : null,
       }
     });
 
@@ -815,7 +829,8 @@ candidatesRouter.post('/:applicationId/reparse-resume', authenticateToken, requi
       return res.status(403).json({ success: false, error: 'Forbidden: You do not own this application.' });
     }
 
-    if (!application.candidate.resumeUrl) {
+    const resumePath = application.resumeUrl || application.candidate.resumeUrl;
+    if (!resumePath) {
       return res.status(400).json({ success: false, error: 'Candidate has no uploaded resume file.' });
     }
 
@@ -826,7 +841,7 @@ candidatesRouter.post('/:applicationId/reparse-resume', authenticateToken, requi
       jobSkills = ['Git', 'Linux', 'Docker', 'Kubernetes', 'CI/CD'];
     }
 
-    const fullPath = storageService.resolveLocalPath(application.candidate.resumeUrl);
+    const fullPath = storageService.resolveLocalPath(resumePath);
     const evalRes = await ResumeMatchingService.parseAndEvaluateResumeFile(
       fullPath,
       jobSkills,
@@ -1066,5 +1081,138 @@ candidatesRouter.post('/:applicationId/schedule-interview', authenticateToken, r
     res.json({ success: true, application, message: 'HR Interview scheduled and candidate notified via email.' });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * Authenticated Resume Streaming Endpoint (Anti-PII Leakage & Multi-Tenant Verified)
+ * Requirements:
+ * 1. authenticate requester (recruiter JWT or candidate assessment token)
+ * 2. determine company
+ * 3. verify application belongs to requester's company
+ * 4. stream the file
+ * 5. prevent path traversal
+ * 6. never expose filesystem path
+ * 7. return 401/403/404 for unauthorized access
+ */
+candidatesRouter.get('/:applicationId/resume', optionalAuth, async (req: AuthenticatedRequest, res) => {
+  const { applicationId } = req.params;
+  const tokenQuery = req.query.token as string | undefined;
+
+  try {
+    const application = await prisma.jobApplication.findUnique({
+      where: { id: applicationId },
+      include: {
+        candidate: true,
+        job: { include: { company: true } }
+      }
+    });
+
+    if (!application) {
+      return res.status(404).json({ success: false, error: 'Candidate application not found.' });
+    }
+
+    // Verify Authorization:
+    let isAuthorized = false;
+    if (req.user) {
+      const isSuperAdmin = req.user.role === 'ADMIN' && !req.user.companyId;
+      const isTenantUser = req.user.companyId && req.user.companyId === application.job.companyId;
+      if (isSuperAdmin || isTenantUser) {
+        isAuthorized = true;
+      }
+    }
+
+    // Check candidate assessment token (header or query)
+    const assessmentToken = tokenQuery || (req.headers['x-assessment-token'] as string);
+    if (assessmentToken && assessmentToken === application.token) {
+      isAuthorized = true;
+    }
+
+    if (!isAuthorized) {
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden: You do not have permission to access this candidate resume.'
+      });
+    }
+
+    const resumeRelativePath = application.resumeUrl || application.candidate.resumeUrl;
+    if (!resumeRelativePath) {
+      return res.status(404).json({ success: false, error: 'No resume file associated with this application.' });
+    }
+
+    // Anti-Path Traversal & Safe Path Resolution
+    const safeBaseDir = path.resolve(process.cwd(), 'uploads');
+    const fullPath = path.resolve(process.cwd(), resumeRelativePath.replace(/^\//, ''));
+
+    if (!fullPath.startsWith(safeBaseDir)) {
+      return res.status(403).json({ success: false, error: 'Access denied: Directory traversal detected.' });
+    }
+
+    if (!fs.existsSync(fullPath)) {
+      return res.status(404).json({ success: false, error: 'Resume file not found on disk.' });
+    }
+
+    const fileName = application.resumeFileName || application.candidate.resumeFileName || 'resume.pdf';
+    const ext = path.extname(fileName).toLowerCase();
+    const mimeTypes: Record<string, string> = {
+      '.pdf': 'application/pdf',
+      '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      '.doc': 'application/msword',
+      '.txt': 'text/plain',
+    };
+
+    res.setHeader('Content-Type', mimeTypes[ext] || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(fileName)}"`);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+
+    fs.createReadStream(fullPath).pipe(res);
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: 'An error occurred while streaming the file.' });
+  }
+});
+
+/**
+ * Authenticated Proctoring Snapshot Streaming Endpoint
+ * Accessible only by Recruiter / Admin belonging to applicant's company.
+ */
+candidatesRouter.get('/:applicationId/snapshots/:filename', authenticateToken, requireRole(['RECRUITER', 'ADMIN', 'HR_ADMIN', 'TECH_INTERVIEWER']), async (req: AuthenticatedRequest, res) => {
+  const { applicationId, filename } = req.params;
+
+  try {
+    const application = await prisma.jobApplication.findUnique({
+      where: { id: applicationId },
+      include: { job: true }
+    });
+
+    if (!application) {
+      return res.status(404).json({ success: false, error: 'Application not found.' });
+    }
+
+    const isSuperAdmin = req.user?.role === 'ADMIN' && !req.user?.companyId;
+    if (!isSuperAdmin && req.user?.companyId !== application.job.companyId) {
+      return res.status(403).json({ success: false, error: 'Forbidden: You do not own this application.' });
+    }
+
+    const safeBaseDir = path.resolve(process.cwd(), 'uploads', 'proctoring');
+    const cleanFilename = path.basename(filename);
+    const fullPath = path.resolve(safeBaseDir, cleanFilename);
+
+    if (!fullPath.startsWith(safeBaseDir) || !fs.existsSync(fullPath)) {
+      return res.status(404).json({ success: false, error: 'Snapshot image not found.' });
+    }
+
+    const ext = path.extname(cleanFilename).toLowerCase();
+    const mimeTypes: Record<string, string> = {
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.webp': 'image/webp',
+    };
+
+    res.setHeader('Content-Type', mimeTypes[ext] || 'image/jpeg');
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    fs.createReadStream(fullPath).pipe(res);
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: 'Failed to stream snapshot.' });
   }
 });

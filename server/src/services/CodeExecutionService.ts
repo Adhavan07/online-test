@@ -28,6 +28,7 @@ export interface ExecutionSummary {
   testResults: TestCaseResult[];
   timedOut: boolean;
   overallExecutionTimeMs: number;
+  disabled?: boolean;
 }
 
 export class CodeExecutionService {
@@ -41,6 +42,10 @@ export class CodeExecutionService {
         fs.mkdirSync(CodeExecutionService.SANDBOX_DIR, { recursive: true });
       } catch {}
     }
+  }
+
+  public static isExecutionEnabled(): boolean {
+    return process.env.ENABLE_CODE_EXECUTION === 'true';
   }
 
   /**
@@ -167,6 +172,28 @@ export class CodeExecutionService {
         testResults: [],
         timedOut: false,
         overallExecutionTimeMs: 0,
+      };
+    }
+
+    // Check if live code execution is enabled
+    if (!this.isExecutionEnabled()) {
+      return {
+        language,
+        passCount: 0,
+        totalCases: testCases.length,
+        percentage: 0,
+        testResults: testCases.map((tc, idx) => ({
+          testCaseIndex: idx + 1,
+          description: tc.description || `Test Case #${idx + 1}`,
+          passed: false,
+          actual: 'Execution Disabled: Public code execution is disabled for security hardening. Submissions are queued for offline evaluation.',
+          expected: Boolean(tc.isHidden) && maskHiddenDetails ? '[Protected Output]' : tc.expectedOutput,
+          isHidden: Boolean(tc.isHidden),
+          executionTimeMs: 0,
+        })),
+        timedOut: false,
+        overallExecutionTimeMs: 0,
+        disabled: true,
       };
     }
 

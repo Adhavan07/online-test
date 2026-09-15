@@ -196,25 +196,31 @@ describe('PHASE 4: Assessment Answer-Key & Hidden Test Cases Security Suite', ()
   });
 
   it('masks actual and expected output when executing against hidden test cases', async () => {
-    // Run candidate code against the question
-    const res = await request(app)
-      .post('/api/assessment/run-code')
-      .send({
-        questionId: codingQuestionId,
-        code: 'function solution(input) { return "[0, 1]"; }',
-        language: 'javascript'
-      });
+    const prevEnv = process.env.ENABLE_CODE_EXECUTION;
+    process.env.ENABLE_CODE_EXECUTION = 'true';
+    try {
+      // Run candidate code against the question
+      const res = await request(app)
+        .post('/api/assessment/run-code')
+        .send({
+          questionId: codingQuestionId,
+          code: 'function solution(input) { return "[0, 1]"; }',
+          language: 'javascript'
+        });
 
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    const evalResult = res.body.evalResult;
-    expect(evalResult).toBeDefined();
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      const evalResult = res.body.evalResult;
+      expect(evalResult).toBeDefined();
 
-    const hiddenCase = evalResult.testResults.find((r: any) => r.isHidden);
-    expect(hiddenCase).toBeDefined();
-    // Hidden case outputs must be masked
-    expect(hiddenCase.expected).toBe('[Protected Output]');
-    expect(hiddenCase.actual).toMatch(/(Passed|Failed) \(Hidden Case\)/);
+      const hiddenCase = evalResult.testResults.find((r: any) => r.isHidden);
+      expect(hiddenCase).toBeDefined();
+      // Hidden case outputs must be masked
+      expect(hiddenCase.expected).toBe('[Protected Output]');
+      expect(hiddenCase.actual).toMatch(/(Passed|Failed) \(Hidden Case\)/);
+    } finally {
+      process.env.ENABLE_CODE_EXECUTION = prevEnv;
+    }
   });
 
   it('correctly grades server-side using database truth without candidate tampering', async () => {

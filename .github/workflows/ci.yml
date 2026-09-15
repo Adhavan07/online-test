@@ -57,10 +57,10 @@ jobs:
       - name: Generate Prisma Client
         run: npx prisma generate --schema=server/src/prisma/schema.prisma
 
-      - name: Push Database Schema
+      - name: Deploy Database Migrations
         env:
           DATABASE_URL: postgresql://postgres:postgrespassword@localhost:5432/techscreen_pro?schema=public
-        run: npm run db:push
+        run: npx prisma migrate deploy --schema=server/src/prisma/schema.prisma
 
       - name: Seed Database
         env:

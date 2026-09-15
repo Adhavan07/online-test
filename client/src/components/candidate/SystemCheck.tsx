@@ -4,6 +4,10 @@ import { Camera, Mic, Monitor, Globe, ShieldCheck, ArrowRight, AlertTriangle, Re
 interface SystemCheckProps {
   onSystemCheckComplete: () => void;
   jobTitle: string;
+  cameraRequired?: boolean;
+  microphoneRequired?: boolean;
+  screenShareRequired?: boolean;
+  fullscreenRequired?: boolean;
 }
 
 type DeviceStatus = 'INITIAL' | 'CHECKING' | 'READY' | 'DENIED' | 'UNAVAILABLE';
@@ -12,6 +16,10 @@ type ScreenStatus = 'INITIAL' | 'CHECKING' | 'GRANTED' | 'DENIED' | 'UNAVAILABLE
 export const SystemCheck: React.FC<SystemCheckProps> = ({
   onSystemCheckComplete,
   jobTitle,
+  cameraRequired = true,
+  microphoneRequired = true,
+  screenShareRequired = true,
+  fullscreenRequired = true,
 }) => {
   const [agreed, setAgreed] = useState(false);
   const [cameraStatus, setCameraStatus] = useState<DeviceStatus>('INITIAL');
@@ -32,7 +40,7 @@ export const SystemCheck: React.FC<SystemCheckProps> = ({
           setNetworkStatus('UNSTABLE');
         }
       })
-      .catch(() => setNetworkStatus('STABLE')); // Fallback gracefully if health route is unmapped
+      .catch(() => setNetworkStatus('UNSTABLE')); // Truthful reporting: never falsely report failed check as STABLE
   }, []);
 
   // Check camera and microphone hardware
@@ -114,15 +122,44 @@ export const SystemCheck: React.FC<SystemCheckProps> = ({
     checkMediaPermissions();
   }, []);
 
+  // Strict Policy Check:
+  // If a device is required, UNAVAILABLE or DENIED status blocks commencement.
+  const cameraPassed = cameraRequired ? cameraStatus === 'READY' : (cameraStatus === 'READY' || cameraStatus === 'UNAVAILABLE' || cameraStatus === 'INITIAL');
+  const micPassed = microphoneRequired ? micStatus === 'READY' : (micStatus === 'READY' || micStatus === 'UNAVAILABLE' || micStatus === 'INITIAL');
+  const screenPassed = screenShareRequired ? screenStatus === 'GRANTED' : (screenStatus === 'GRANTED' || screenStatus === 'UNAVAILABLE' || screenStatus === 'INITIAL');
+
   const hasHardwareIssues = cameraStatus === 'DENIED' || micStatus === 'DENIED' || screenStatus === 'DENIED';
 
-  // Allow proceeding only if permissions are verified or hardware is physically unavailable in testing environment
   const canProceed =
     agreed &&
-    (cameraStatus === 'READY' || cameraStatus === 'UNAVAILABLE') &&
-    (micStatus === 'READY' || micStatus === 'UNAVAILABLE') &&
-    (screenStatus === 'GRANTED' || screenStatus === 'UNAVAILABLE') &&
-    !hasHardwareIssues;
+    cameraPassed &&
+    micPassed &&
+    screenPassed &&
+    !hasHardwareIssues &&
+    networkStatus !== 'CHECKING';
+
+  const handleCommence = async () => {
+    setPermissionError(null);
+
+    // Enforce genuine Fullscreen Entry if required
+    if (fullscreenRequired) {
+      try {
+        if (document.documentElement.requestFullscreen) {
+          await document.documentElement.requestFullscreen();
+        }
+        // Verify actual fullscreen element
+        if (!document.fullscreenElement) {
+          setPermissionError('Fullscreen entry could not be verified. Fullscreen mode is mandatory for this assessment.');
+          return;
+        }
+      } catch (err: any) {
+        setPermissionError('Fullscreen entry blocked: ' + (err.message || 'Browser prevented fullscreen entry. Please click to allow fullscreen.'));
+        return;
+      }
+    }
+
+    onSystemCheckComplete();
+  };
 
   const renderBadge = (status: DeviceStatus | ScreenStatus | 'STABLE' | 'UNSTABLE') => {
     switch (status) {
@@ -331,7 +368,7 @@ export const SystemCheck: React.FC<SystemCheckProps> = ({
       {/* Start Button */}
       <button
         disabled={!canProceed}
-        onClick={onSystemCheckComplete}
+        onClick={handleCommence}
         className="w-full bg-zinc-900 hover:bg-zinc-800 text-white font-semibold py-3 rounded transition flex items-center justify-center space-x-2 disabled:opacity-40 disabled:cursor-not-allowed text-xs"
       >
         <span>Commence Technical Assessment</span>

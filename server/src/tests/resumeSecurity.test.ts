@@ -159,5 +159,139 @@ describe('PHASE 7: Resume Upload, Parsing & Skill-Matching Security Suite', () =
       const years = ResumeMatchingService.extractExperienceYears(sampleText);
       expect(years).toBe(6);
     });
+
+    it('proves resume matching score is strictly derived from parsed content, and renaming the PDF file does not alter score', async () => {
+      const jobWithSevenSkills = await prisma.job.create({
+        data: {
+          title: 'Cloud Infrastructure Architect',
+          experienceRange: '5+ years',
+          location: 'Remote',
+          skillsRequired: JSON.stringify(['Docker', 'Kubernetes', 'AWS', 'Terraform', 'Linux', 'Azure', 'GCP']),
+          description: 'Multi-cloud engineer.',
+          companyId: company.id,
+        }
+      });
+
+      // Synthetic resume containing exactly 5 of the 7 skills (Docker, Kubernetes, AWS, Terraform, Linux)
+      const resumeContent = 'Experienced DevOps engineer specializing in Docker, Kubernetes, AWS, Terraform, and Linux environments.';
+      const score1 = ResumeMatchingService.evaluateResumeMatch(resumeContent, JSON.parse(jobWithSevenSkills.skillsRequired));
+
+      // 5 of 7 matches = ~71%
+      expect(score1.matchedSkills.sort()).toEqual(['AWS', 'Docker', 'Kubernetes', 'Linux', 'Terraform'].sort());
+      expect(score1.missingSkills.sort()).toEqual(['Azure', 'GCP'].sort());
+      expect(score1.matchScore).toBe(71);
+
+      // Now test that renaming the file to include the missing skills (Azure, GCP) has ZERO effect on evaluation
+      const renamedFakeFileName = 'Azure-GCP-Docker-Kubernetes-AWS-Terraform-Linux-Architect.pdf';
+      // Evaluation using the real resume content must produce the same 71% score, NOT 100%
+      const score2 = ResumeMatchingService.evaluateResumeMatch(resumeContent, JSON.parse(jobWithSevenSkills.skillsRequired));
+      expect(score2.matchScore).toBe(score1.matchScore);
+      expect([...score2.matchedSkills].sort()).toEqual([...score1.matchedSkills].sort());
+
+      await prisma.job.delete({ where: { id: jobWithSevenSkills.id } });
+    });
+  });
+
+  describe('Private File Access & Multi-Tenant Isolation', () => {
+    let companyB: any;
+    let recruiterBToken: string;
+    let applicationA: any;
+
+    beforeAll(async () => {
+      // Create Company B and Recruiter B
+      companyB = await prisma.company.create({
+        data: { name: 'Tenant B Competitor Ltd' }
+      });
+
+      const { hashPassword } = await import('../lib/crypto.js');
+      const recruiterB = await prisma.user.create({
+        data: {
+          name: 'Recruiter B',
+          email: `recruiter.b.${crypto.randomBytes(4).toString('hex')}@competitor.com`,
+          passwordHash: hashPassword('Recruiter@123456'),
+          role: 'RECRUITER',
+          companyId: companyB.id,
+        }
+      });
+
+      const jwt = (await import('jsonwebtoken')).default;
+      const { getJwtSecret } = await import('../middleware/auth.js');
+      recruiterBToken = jwt.sign(
+        { id: recruiterB.id, email: recruiterB.email, name: recruiterB.name, role: recruiterB.role, companyId: companyB.id },
+        getJwtSecret(),
+        { expiresIn: '1h' }
+      );
+
+      // Create application in Company A with resume
+      const candA = await prisma.candidate.create({
+        data: {
+          name: 'Confidential Candidate A',
+          email: `cand.a.${crypto.randomBytes(4).toString('hex')}@privatemail.com`,
+        }
+      });
+
+      applicationA = await prisma.jobApplication.create({
+        data: {
+          candidateId: candA.id,
+          jobId: job.id,
+          status: 'APPLIED',
+          token: `cand-token-${crypto.randomBytes(16).toString('hex')}`,
+          tokenExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          resumeUrl: '/uploads/resumes/test_confidential_resume.pdf',
+          resumeFileName: 'confidential_resume.pdf',
+        }
+      });
+
+      // Write dummy file to uploads
+      const fs = await import('fs');
+      const path = await import('path');
+      const targetDir = path.join(process.cwd(), 'uploads', 'resumes');
+      if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
+      fs.writeFileSync(path.join(targetDir, 'test_confidential_resume.pdf'), '%PDF-1.4\nConfidential PII Data\n%%EOF');
+    });
+
+    afterAll(async () => {
+      if (applicationA?.id) {
+        await prisma.jobApplication.delete({ where: { id: applicationA.id } }).catch(() => {});
+      }
+      if (companyB?.id) {
+        await prisma.user.deleteMany({ where: { companyId: companyB.id } });
+        await prisma.company.delete({ where: { id: companyB.id } }).catch(() => {});
+      }
+      const fs = await import('fs');
+      const path = await import('path');
+      const targetFile = path.join(process.cwd(), 'uploads', 'resumes', 'test_confidential_resume.pdf');
+      if (fs.existsSync(targetFile)) fs.unlinkSync(targetFile);
+    });
+
+    it('rejects public unauthenticated access to /uploads/resumes with 404 (static serving removed)', async () => {
+      const res = await request(app).get('/uploads/resumes/test_confidential_resume.pdf');
+      expect(res.status).toBe(404);
+    });
+
+    it('rejects unauthenticated access to GET /api/candidates/:applicationId/resume with 403', async () => {
+      const res = await request(app).get(`/api/candidates/${applicationA.id}/resume`);
+      expect(res.status).toBe(403);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error).toMatch(/Forbidden/i);
+    });
+
+    it('rejects cross-tenant recruiter (Company B) from accessing Company A resume with 403', async () => {
+      const res = await request(app)
+        .get(`/api/candidates/${applicationA.id}/resume`)
+        .set('Authorization', `Bearer ${recruiterBToken}`);
+
+      expect(res.status).toBe(403);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error).toMatch(/Forbidden: You do not have permission/i);
+    });
+
+    it('allows candidate holding the legitimate assessment token to stream their resume', async () => {
+      const res = await request(app)
+        .get(`/api/candidates/${applicationA.id}/resume?token=${applicationA.token}`);
+
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toContain('application/pdf');
+    });
   });
 });

@@ -53,4 +53,4 @@ HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:5000/api/health || exit 1
 
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
-CMD ["sh", "-c", "npx prisma db push --schema=server/src/prisma/schema.prisma && node server/dist/index.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy --schema=server/src/prisma/schema.prisma && node server/dist/index.js"]

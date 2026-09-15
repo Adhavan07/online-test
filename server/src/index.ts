@@ -17,19 +17,42 @@ import { webhooksRouter } from './routes/webhooks.js';
 import { notificationsRouter } from './routes/notifications.js';
 
 import { securityHeaders } from './middleware/securityHeaders.js';
+import { enforceStartupConfig } from './middleware/auth.js';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Trust reverse proxy (nginx / load balancer)
+app.set('trust proxy', 1);
+
 app.use(securityHeaders);
-app.use(cors());
+
+// Restrictive CORS configuration
+const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS
+  ? process.env.CORS_ALLOWED_ORIGINS.split(',').map(s => s.trim())
+  : ['http://localhost:3000', 'http://localhost:5000', 'http://localhost:5173'];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+    return callback(new Error('Blocked by CORS security policy.'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token', 'x-assessment-token'],
+}));
+
 app.use(express.json({ limit: '10mb' }));
 
-// Serve static uploaded resumes
-const uploadsDir = path.join(process.cwd(), 'uploads');
-app.use('/uploads', express.static(uploadsDir));
+// NOTE: Public static serving of /uploads is REMOVED to protect candidate PII.
+// Resumes and proctoring snapshots are strictly accessed through authenticated endpoints:
+// GET /api/candidates/:applicationId/resume
+// GET /api/candidates/:applicationId/snapshots/:filename
 
 // API Routers
 app.use('/api/auth', authRouter);
@@ -51,6 +74,11 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'UP', service: 'TechScreen Pro Backend API', timestamp: new Date() });
 });
 
+// Explicitly block public static access to /uploads with 404
+app.all('/uploads/*', (req, res) => {
+  res.status(404).json({ success: false, error: 'Public static file access to /uploads is disabled. Authenticated endpoints must be used.' });
+});
+
 // Serve frontend static build if available
 const clientDistDir = path.join(process.cwd(), 'client', 'dist');
 if (fs.existsSync(clientDistDir)) {
@@ -63,18 +91,32 @@ if (fs.existsSync(clientDistDir)) {
   });
 }
 
-// Global error handling middleware
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+// Global error handling middleware (Sanitized for production)
+app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   if (err.type === 'entity.too.large' || err.status === 413) {
     return res.status(413).json({ success: false, error: 'Payload too large: Request body exceeds allowed size.' });
   }
   if (err.status === 400 && 'body' in err) {
     return res.status(400).json({ success: false, error: 'Invalid JSON payload.' });
   }
-  next(err);
+  if (err.message === 'Blocked by CORS security policy.') {
+    return res.status(403).json({ success: false, error: 'CORS policy violation: Origin not allowed.' });
+  }
+
+  // Server-side detailed logging (without leaking secrets)
+  console.error('[SERVER ERROR]', err.message || err);
+
+  const statusCode = err.status || err.statusCode || 500;
+  const isProd = process.env.NODE_ENV === 'production';
+  const safeMessage = isProd
+    ? 'An internal server error occurred. Please contact system support.'
+    : err.message || 'Internal server error';
+
+  return res.status(statusCode).json({ success: false, error: safeMessage });
 });
 
 if (process.env.NODE_ENV !== 'test') {
+  enforceStartupConfig();
   app.listen(PORT, (err?: any) => {
     if (err) {
       console.error('Error starting server:', err);

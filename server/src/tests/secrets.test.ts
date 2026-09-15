@@ -81,6 +81,35 @@ describe('PHASE 5: Secrets, Environment Variables & JWT Hardening Security Suite
       expect(getJwtSecret()).toBe('c9842a6c0b9a8f12d8a5712e4fbc890123456789abcdef0123456789abcdef');
     });
 
+    it('validates startup configuration directly and catches fatal production misconfigurations', async () => {
+      const { validateStartupConfig } = await import('../middleware/auth.js');
+      
+      // Test missing
+      process.env.NODE_ENV = 'production';
+      delete process.env.JWT_SECRET;
+      const resMissing = validateStartupConfig();
+      expect(resMissing.valid).toBe(false);
+      expect(resMissing.error).toMatch(/JWT_SECRET environment variable is missing/i);
+
+      // Test short
+      process.env.JWT_SECRET = 'too-short-secret';
+      const resShort = validateStartupConfig();
+      expect(resShort.valid).toBe(false);
+      expect(resShort.error).toMatch(/at least 32 characters long/i);
+
+      // Test insecure default
+      process.env.JWT_SECRET = 'techscreen-enterprise-secret-change-in-prod-2026';
+      const resDefault = validateStartupConfig();
+      expect(resDefault.valid).toBe(false);
+      expect(resDefault.error).toMatch(/cannot be a known insecure default/i);
+
+      // Test valid production key
+      process.env.JWT_SECRET = 'a-very-strong-production-cryptographic-key-32-chars-long';
+      const resValid = validateStartupConfig();
+      expect(resValid.valid).toBe(true);
+      expect(resValid.error).toBeUndefined();
+    });
+
     it('restores test environment safely', () => {
       process.env.NODE_ENV = 'test';
       process.env.JWT_SECRET = originalSecret || 'test-dev-secret-key-that-is-at-least-32-chars-long';
