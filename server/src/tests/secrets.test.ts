@@ -83,7 +83,7 @@ describe('PHASE 5: Secrets, Environment Variables & JWT Hardening Security Suite
 
     it('validates startup configuration directly and catches fatal production misconfigurations', async () => {
       const { validateStartupConfig } = await import('../middleware/auth.js');
-      
+
       // Test missing
       process.env.NODE_ENV = 'production';
       delete process.env.JWT_SECRET;
