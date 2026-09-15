@@ -17,6 +17,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeView,
   setActiveView,
   onOpenCreateJob,
+  currentUser,
+  onLogout,
 }) => {
   const navSections = [
     {
@@ -117,7 +119,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="flex items-center justify-between p-2 rounded bg-white border border-zinc-200/80">
           <div className="flex items-center space-x-2.5 min-w-0">
             <div className="w-7 h-7 rounded bg-blue-600/10 text-blue-700 font-bold text-xs flex items-center justify-center border border-blue-200 font-mono shrink-0">
-              {currentUser?.name ? currentUser.name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase() : 'TS'}
+              {currentUser?.name ? currentUser.name.split(' ').map((p: string) => p[0]).join('').slice(0, 2).toUpperCase() : 'TS'}
             </div>
             <div className="truncate min-w-0">
               <div className="text-xs font-semibold text-zinc-900 truncate">
