@@ -9,3 +9,5 @@ uploads/badges/*
 uploads/proctoring/*
 uploads/resumes/*
 uploads/temp/*
+test-results/
+playwright-report/
