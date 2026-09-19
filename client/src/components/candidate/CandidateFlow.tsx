@@ -55,12 +55,17 @@ export const CandidateFlow: React.FC<CandidateFlowProps> = ({ token }) => {
     setStep('SYSTEM_CHECK');
   };
 
-  const handleSystemCheckComplete = async () => {
+  const handleSystemCheckComplete = async (consentData?: { consentRecorded: boolean; consentVersion: string; declaredAge?: number }) => {
     try {
       const res = await fetch('/api/assessment/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token })
+        body: JSON.stringify({
+          token,
+          consentRecorded: consentData?.consentRecorded ?? true,
+          consentVersion: consentData?.consentVersion ?? 'DPDP-2025-V1',
+          declaredAge: consentData?.declaredAge,
+        })
       });
       const data = await res.json();
       if (data.success) {

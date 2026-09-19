@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import { 
   LayoutDashboard, Users, Briefcase, FileText, BarChart3, 
   Settings, ShieldCheck, UserCheck, ChevronRight, Sparkles, Network, LogOut,
-  Building2, Check, ChevronsUpDown
+  Building2, Check, ChevronsUpDown, Shield
 } from 'lucide-react';
 import { UserSession } from '../lib/auth';
 import { useTenant } from '../lib/TenantContext';
+import { LegalModal } from './legal/LegalModal';
 
 interface SidebarProps {
   activeView: string; // 'dashboard' | 'candidates' | 'jobs' | 'assessments' | 'analytics' | 'admin'
@@ -24,6 +25,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const { tenant, availableTenants, switchWorkspace, isSuperAdmin } = useTenant();
   const [isSwitcherOpen, setIsSwitcherOpen] = useState(false);
+  const [isLegalModalOpen, setIsLegalModalOpen] = useState(false);
 
   const navSections = [
     {
@@ -220,7 +222,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           )}
         </div>
+
+        {/* Legal & Compliance Quick Access */}
+        <div className="pt-2 px-1 flex items-center justify-center">
+          <button
+            type="button"
+            onClick={() => setIsLegalModalOpen(true)}
+            className="text-[11px] text-zinc-500 hover:text-zinc-900 flex items-center space-x-1.5 transition underline cursor-pointer"
+          >
+            <Shield className="w-3 h-3 text-blue-600" />
+            <span>DPDP & Legal Policies</span>
+          </button>
+        </div>
       </div>
+
+      <LegalModal
+        isOpen={isLegalModalOpen}
+        onClose={() => setIsLegalModalOpen(false)}
+        defaultTab="privacy"
+      />
 
     </aside>
   );

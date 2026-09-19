@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Building2, Palette, ShieldCheck, Users, Save, CheckCircle2, 
-  AlertCircle, Globe, Link, Sliders, RefreshCw, Plus, Mail
+  AlertCircle, Globe, Link, Sliders, RefreshCw, Plus, Mail,
+  Database, Trash2, CreditCard, Shield, Clock
 } from 'lucide-react';
 import { useTenant } from '../../lib/TenantContext';
 import { getStoredUser } from '../../lib/auth';
@@ -18,7 +19,10 @@ export const TenantSettingsView: React.FC = () => {
     plan: storedUser.company.plan || 'ENTERPRISE',
     settings: {
       defaultPassThreshold: 70,
-      proctoringStrictness: 'STANDARD'
+      proctoringStrictness: 'STANDARD',
+      proctoringSnapshotRetentionDays: 30,
+      candidateDataRetentionDays: 180,
+      minimumAgeRequired: 18,
     }
   } : null);
 
@@ -27,6 +31,11 @@ export const TenantSettingsView: React.FC = () => {
   const [brandColor, setBrandColor] = useState(activeTenant?.brandColor || '#2563eb');
   const [passThreshold, setPassThreshold] = useState(activeTenant?.settings?.defaultPassThreshold || 70);
   const [proctoringStrictness, setProctoringStrictness] = useState(activeTenant?.settings?.proctoringStrictness || 'STANDARD');
+  const [proctoringRetentionDays, setProctoringRetentionDays] = useState(activeTenant?.settings?.proctoringSnapshotRetentionDays ?? 30);
+  const [candidateRetentionDays, setCandidateRetentionDays] = useState(activeTenant?.settings?.candidateDataRetentionDays ?? 180);
+  const [minAge, setMinAge] = useState(activeTenant?.settings?.minimumAgeRequired ?? 18);
+  const [purging, setPurging] = useState(false);
+  const [purgeResult, setPurgeResult] = useState<string | null>(null);
   
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
@@ -47,6 +56,9 @@ export const TenantSettingsView: React.FC = () => {
       setBrandColor(activeTenant.brandColor || '#2563eb');
       setPassThreshold(activeTenant.settings?.defaultPassThreshold || 70);
       setProctoringStrictness(activeTenant.settings?.proctoringStrictness || 'STANDARD');
+      setProctoringRetentionDays(activeTenant.settings?.proctoringSnapshotRetentionDays ?? 30);
+      setCandidateRetentionDays(activeTenant.settings?.candidateDataRetentionDays ?? 180);
+      setMinAge(activeTenant.settings?.minimumAgeRequired ?? 18);
     }
   }, [tenant]);
 
@@ -84,6 +96,9 @@ export const TenantSettingsView: React.FC = () => {
           settings: {
             defaultPassThreshold: Number(passThreshold),
             proctoringStrictness,
+            proctoringSnapshotRetentionDays: Number(proctoringRetentionDays),
+            candidateDataRetentionDays: Number(candidateRetentionDays),
+            minimumAgeRequired: Number(minAge),
           }
         })
       });
@@ -100,6 +115,29 @@ export const TenantSettingsView: React.FC = () => {
       setError(err.message || 'Error updating settings.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleTriggerPurge = async () => {
+    if (!window.confirm('Execute automated retention purge now? Expired proctoring snapshots older than configured threshold will be unlinked (records under active Legal Hold are strictly preserved).')) return;
+    setPurging(true);
+    setPurgeResult(null);
+    try {
+      const res = await fetch('/api/admin/retention/purge-expired', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId: activeTenant?.id })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPurgeResult(`Purged ${data.purgedCount} expired snapshots. ${data.legalHoldSkippedCount} records skipped due to active legal hold.`);
+      } else {
+        alert('Purge error: ' + data.error);
+      }
+    } catch (err: any) {
+      alert('Purge request failed: ' + err.message);
+    } finally {
+      setPurging(false);
     }
   };
 
@@ -305,6 +343,135 @@ export const TenantSettingsView: React.FC = () => {
               <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
               <span>Dedicated tenant database row-level isolation active.</span>
             </div>
+          </div>
+        </div>
+
+        {/* Card 3: Data Retention & DPDP Controls */}
+        <div className="bg-white border border-zinc-200 rounded-lg p-5 shadow-2xs space-y-4">
+          <div className="flex items-center space-x-2 border-b border-zinc-100 pb-3">
+            <Database className="w-4 h-4 text-amber-600" />
+            <h3 className="text-xs font-bold text-zinc-900 uppercase font-mono tracking-wider">
+              Data Retention & DPDP Controls
+            </h3>
+          </div>
+
+          <div>
+            <div className="flex justify-between items-center mb-1">
+              <label className="text-xs font-semibold text-zinc-700">Webcam Snapshot Retention</label>
+              <span className="text-xs font-mono font-bold text-amber-600">{proctoringRetentionDays} Days</span>
+            </div>
+            <input
+              type="range"
+              min={7}
+              max={90}
+              step={1}
+              value={proctoringRetentionDays}
+              onChange={(e) => setProctoringRetentionDays(Number(e.target.value))}
+              className="w-full accent-amber-600"
+            />
+            <p className="text-[10px] text-zinc-400 mt-1">Periodic proctoring photos are unlinked from disk after this period unless under active legal hold.</p>
+          </div>
+
+          <div>
+            <div className="flex justify-between items-center mb-1">
+              <label className="text-xs font-semibold text-zinc-700">Candidate Data Retention</label>
+              <span className="text-xs font-mono font-bold text-amber-600">{candidateRetentionDays} Days</span>
+            </div>
+            <input
+              type="range"
+              min={30}
+              max={365}
+              step={15}
+              value={candidateRetentionDays}
+              onChange={(e) => setCandidateRetentionDays(Number(e.target.value))}
+              className="w-full accent-amber-600"
+            />
+            <p className="text-[10px] text-zinc-400 mt-1">Overall candidate assessment scores and resume files retention window.</p>
+          </div>
+
+          <div>
+            <div className="flex justify-between items-center mb-1">
+              <label className="text-xs font-semibold text-zinc-700">Minimum Age Assurance Gate</label>
+              <span className="text-xs font-mono font-bold text-blue-600">{minAge} Years</span>
+            </div>
+            <select
+              value={minAge}
+              onChange={(e) => setMinAge(Number(e.target.value))}
+              className="w-full bg-white border border-zinc-200 rounded-md px-3 py-2 text-xs text-zinc-900 focus:outline-none focus:border-blue-500"
+            >
+              <option value={14}>14 Years (Apprentices Act, 1961 - Designated trades)</option>
+              <option value={16}>16 Years (Vocational training & skill internships)</option>
+              <option value={18}>18 Years (Standard adult employment / contract eligibility)</option>
+            </select>
+            <p className="text-[10px] text-zinc-400 mt-1">Configurable by tenant based on applicable Indian labour & apprenticeship regulations.</p>
+          </div>
+
+          <div className="pt-2 border-t border-zinc-100 flex items-center justify-between">
+            <span className="text-[11px] text-zinc-500">Legal Hold Protected</span>
+            <button
+              type="button"
+              disabled={purging}
+              onClick={handleTriggerPurge}
+              className="px-2.5 py-1 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded transition flex items-center space-x-1 cursor-pointer"
+            >
+              <Trash2 className="w-3 h-3" />
+              <span>{purging ? 'Purging...' : 'Purge Expired Media'}</span>
+            </button>
+          </div>
+
+          {purgeResult && (
+            <div className="p-2 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded text-[11px] font-mono">
+              {purgeResult}
+            </div>
+          )}
+        </div>
+
+        {/* Card 4: Subscription Transparency & Fair Terms */}
+        <div className="bg-white border border-zinc-200 rounded-lg p-5 shadow-2xs space-y-4">
+          <div className="flex items-center space-x-2 border-b border-zinc-100 pb-3">
+            <CreditCard className="w-4 h-4 text-indigo-600" />
+            <h3 className="text-xs font-bold text-zinc-900 uppercase font-mono tracking-wider">
+              Subscription & Renewal Transparency
+            </h3>
+          </div>
+
+          <div className="p-3 bg-zinc-50 rounded border border-zinc-200 space-y-2 text-xs">
+            <div className="flex justify-between items-center">
+              <span className="text-zinc-600 font-medium">Current Workspace Plan:</span>
+              <span className="font-mono font-bold text-zinc-900 uppercase px-2 py-0.5 bg-zinc-200 rounded text-[10px]">
+                {activeTenant?.plan || 'ENTERPRISE'}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-zinc-600 font-medium">Billing Cycle:</span>
+              <span className="text-zinc-800 font-mono text-[11px]">Monthly / Annual Renewal</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-zinc-600 font-medium">Cancellation Notice:</span>
+              <span className="text-emerald-700 font-semibold text-[11px]">Immediate self-service / No barriers</span>
+            </div>
+          </div>
+
+          <div className="text-[11px] text-zinc-600 space-y-2 leading-relaxed">
+            <p>
+              In accordance with fair subscription guidelines (Consumer Protection Dark Patterns Guidelines, 2023):
+            </p>
+            <ul className="list-disc list-inside space-y-1 text-zinc-500">
+              <li>Renewal terms, billing frequency, and refund windows are disclosed prior to billing.</li>
+              <li>No forced continuity, disguised cancellation workflows, or hidden charges.</li>
+              <li>Subscription cancellation requests can be initiated at any time prior to the renewal cycle without penalty.</li>
+            </ul>
+          </div>
+
+          <div className="pt-2 border-t border-zinc-100 flex justify-between items-center">
+            <span className="text-[10px] text-zinc-400 font-mono">Invoice / Tax details configured dynamically</span>
+            <button
+              type="button"
+              onClick={() => alert('Subscription cancellation or tier changes can be managed directly via your enterprise billing agreement without cancellation penalties.')}
+              className="text-xs text-zinc-700 hover:text-zinc-900 underline font-medium cursor-pointer"
+            >
+              Subscription Terms & Policy
+            </button>
           </div>
         </div>
 

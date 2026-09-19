@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ShieldCheck, Lock, Mail, ArrowRight, AlertCircle, Sparkles, Building2, UserCheck } from 'lucide-react';
 import { setStoredSession, UserSession } from '../../lib/auth';
 import { RegisterTenantModal } from './RegisterTenantModal';
+import { LegalModal } from '../legal/LegalModal';
 
 interface LoginPageProps {
   onLoginSuccess: (user: UserSession) => void;
@@ -13,6 +14,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
+  const [legalModalOpen, setLegalModalOpen] = useState(false);
+  const [legalModalTab, setLegalModalTab] = useState<'privacy' | 'terms' | 'proctoring' | 'grievance'>('privacy');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -190,6 +193,47 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         />
 
       </div>
+
+      {/* Compliance & Legal Footer */}
+      <div className="mt-6 flex flex-wrap items-center justify-center gap-4 text-xs text-zinc-500">
+        <button
+          type="button"
+          onClick={() => { setLegalModalTab('privacy'); setLegalModalOpen(true); }}
+          className="hover:text-zinc-900 underline cursor-pointer"
+        >
+          DPDP Privacy Notice
+        </button>
+        <span>&bull;</span>
+        <button
+          type="button"
+          onClick={() => { setLegalModalTab('terms'); setLegalModalOpen(true); }}
+          className="hover:text-zinc-900 underline cursor-pointer"
+        >
+          Terms of Service
+        </button>
+        <span>&bull;</span>
+        <button
+          type="button"
+          onClick={() => { setLegalModalTab('proctoring'); setLegalModalOpen(true); }}
+          className="hover:text-zinc-900 underline cursor-pointer"
+        >
+          Proctoring Advisory
+        </button>
+        <span>&bull;</span>
+        <button
+          type="button"
+          onClick={() => { setLegalModalTab('grievance'); setLegalModalOpen(true); }}
+          className="hover:text-zinc-900 underline cursor-pointer"
+        >
+          Grievance Redressal
+        </button>
+      </div>
+
+      <LegalModal
+        isOpen={legalModalOpen}
+        onClose={() => setLegalModalOpen(false)}
+        defaultTab={legalModalTab}
+      />
       
     </div>
   );

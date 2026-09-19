@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { 
   X, FileText, CheckCircle, XCircle, Clock, Send, Award, Calendar, 
   ChevronRight, ShieldAlert, ShieldCheck, Code2, Copy, Check, Sparkles, 
-  MessageSquare, Star, RotateCcw, Video, ExternalLink, RefreshCw, Briefcase, Camera, Eye
+  MessageSquare, Star, RotateCcw, Video, ExternalLink, RefreshCw, Briefcase, Camera, Eye,
+  Lock, Download, Trash2, Shield, Info
 } from 'lucide-react';
 
 interface CandidateDetailDrawerProps {
@@ -33,8 +34,14 @@ export const CandidateDetailDrawer: React.FC<CandidateDetailDrawerProps> = ({
   const [reparsingResume, setReparsingResume] = useState(false);
   const [newNote, setNewNote] = useState({ rating: 5, comment: '', authorName: '' });
   const [showAllExtractedSkills, setShowAllExtractedSkills] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'ai-insights' | 'proctoring' | 'coding' | 'notes'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'ai-insights' | 'proctoring' | 'coding' | 'notes' | 'privacy'>('overview');
   const [copiedCodeIdx, setCopiedCodeIdx] = useState<number | null>(null);
+
+  // Privacy & Data Rights State
+  const [privacyLoading, setPrivacyLoading] = useState(false);
+  const [holdReasonInput, setHoldReasonInput] = useState('');
+  const [showHoldModal, setShowHoldModal] = useState(false);
+  const [showEraseModal, setShowEraseModal] = useState(false);
 
   // HR Interview Modal State
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
@@ -43,6 +50,83 @@ export const CandidateDetailDrawer: React.FC<CandidateDetailDrawerProps> = ({
     interviewScheduledAt: '',
     interviewLink: 'https://meet.google.com/techscreen-hr-interview',
   });
+
+  const handleExportDSAR = async () => {
+    if (!applicationId) return;
+    setPrivacyLoading(true);
+    try {
+      const res = await fetch(`/api/candidates/${applicationId}/export-data`);
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || 'Failed to fetch candidate data export');
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `candidate_data_export_${applicationId}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert('Error exporting candidate data: ' + err.message);
+    } finally {
+      setPrivacyLoading(false);
+    }
+  };
+
+  const handleToggleLegalHold = async () => {
+    if (!applicationId) return;
+    setPrivacyLoading(true);
+    const newStatus = !detail.legalHold;
+    try {
+      const res = await fetch(`/api/candidates/${applicationId}/legal-hold`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          legalHold: newStatus,
+          reason: newStatus ? (holdReasonInput || 'Compliance retention hold') : undefined
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setShowHoldModal(false);
+        setHoldReasonInput('');
+        fetchData();
+        triggerStatusChanged();
+      } else {
+        alert('Error updating legal hold: ' + data.error);
+      }
+    } catch (err: any) {
+      alert('Error updating legal hold: ' + err.message);
+    } finally {
+      setPrivacyLoading(false);
+    }
+  };
+
+  const handleEraseCandidateData = async () => {
+    if (!applicationId) return;
+    setPrivacyLoading(true);
+    try {
+      const res = await fetch(`/api/candidates/${applicationId}/personal-data`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (data.success) {
+        setShowEraseModal(false);
+        alert('Candidate personal data has been erased successfully. Anonymized record and tamper-resistant audit trail preserved.');
+        fetchData();
+        triggerStatusChanged();
+      } else {
+        alert('Data Erasure Blocked: ' + data.error);
+      }
+    } catch (err: any) {
+      alert('Error requesting data erasure: ' + err.message);
+    } finally {
+      setPrivacyLoading(false);
+    }
+  };
 
   const handleLaunchLiveRoom = async () => {
     try {
@@ -375,6 +459,7 @@ export const CandidateDetailDrawer: React.FC<CandidateDetailDrawerProps> = ({
             { id: 'proctoring', label: `Integrity (${detail?.assessmentSummary?.integrityScore || 100}%)` },
             { id: 'coding', label: `Code (${detail?.assessmentSummary?.codeSubmissions?.length || 0})` },
             { id: 'notes', label: `Team Notes (${notes.length})` },
+            { id: 'privacy', label: detail?.legalHold ? 'Privacy (Hold Active)' : 'Privacy & Compliance' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -773,22 +858,25 @@ export const CandidateDetailDrawer: React.FC<CandidateDetailDrawerProps> = ({
                       </div>
                     )}
 
-                    {/* Integrity Violations Table */}
+                    {/* Integrity Review Flags Table */}
                     <div className="space-y-2 pt-2 border-t border-zinc-200">
                       <div className="flex items-center justify-between text-xs font-semibold text-zinc-900">
                         <div className="flex items-center gap-1.5">
-                          <ShieldAlert className="w-4 h-4 text-rose-600" />
-                          <span>Proctoring Audit Log ({violations.length} events)</span>
+                          <ShieldAlert className="w-4 h-4 text-amber-600" />
+                          <span>Proctoring Integrity Review Flags ({violations.length} events)</span>
                         </div>
                         <span className="text-[11px] font-mono text-zinc-500">
-                          Risk Penalty: {detail.assessmentSummary?.proctoringRiskScore || 0}/100 pts
+                          Verification Score: {detail.assessmentSummary?.integrityScore || 100}%
                         </span>
                       </div>
+                      <p className="text-[10px] text-zinc-500 italic">
+                        Notice: Automated proctoring telemetry serves as advisory verification data for recruiter evaluation, not definitive proof of candidate misconduct.
+                      </p>
 
                       <div className="space-y-1.5 font-mono text-xs">
                         {violations.length === 0 ? (
                           <div className="p-4 bg-emerald-50/50 border border-emerald-200 rounded text-center text-emerald-800 text-[11px]">
-                            ✅ Zero suspicious behavior detected. Clean assessment session.
+                            ✅ No automated integrity review flags recorded during this assessment session.
                           </div>
                         ) : (
                           violations.map((log: any, i: number) => {
@@ -893,6 +981,147 @@ export const CandidateDetailDrawer: React.FC<CandidateDetailDrawerProps> = ({
                   </div>
                 </div>
               )}
+
+              {/* TAB 6: PRIVACY & DATA RIGHTS */}
+              {activeTab === 'privacy' && (
+                <div className="space-y-6">
+                  {/* Status Overview Card */}
+                  <div className="p-4 bg-zinc-50 rounded-lg border border-zinc-200 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Shield className="w-4 h-4 text-blue-600" />
+                        <span className="font-semibold text-zinc-900 text-xs">DPDP Consent Status</span>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded font-mono text-[10px] font-bold ${
+                        detail.consentRecorded
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                          : 'bg-amber-100 text-amber-800 border border-amber-300'
+                      }`}>
+                        {detail.consentRecorded ? 'CONSENT RECORDED' : 'AWAITING CONSENT'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px] font-mono text-zinc-600 pt-1 border-t border-zinc-200">
+                      <div>
+                        <span className="text-zinc-400 block">Notice Version:</span>
+                        <span className="font-semibold text-zinc-800">{detail.consentVersion || 'N/A (Pre-session)'}</span>
+                      </div>
+                      <div>
+                        <span className="text-zinc-400 block">Consent Timestamp:</span>
+                        <span className="font-semibold text-zinc-800">
+                          {detail.consentRecordedAt ? new Date(detail.consentRecordedAt).toLocaleString() : 'Not yet provided'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Legal Retention Hold Card */}
+                  <div className={`p-4 rounded-lg border space-y-3 ${
+                    detail.legalHold
+                      ? 'bg-rose-50/70 border-rose-200 text-rose-950'
+                      : 'bg-zinc-50 border-zinc-200 text-zinc-900'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Lock className={`w-4 h-4 ${detail.legalHold ? 'text-rose-600' : 'text-zinc-500'}`} />
+                        <span className="font-semibold text-xs">Legal Retention Hold Exception</span>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded font-mono text-[10px] font-bold ${
+                        detail.legalHold
+                          ? 'bg-rose-200 text-rose-800'
+                          : 'bg-zinc-200 text-zinc-700'
+                      }`}>
+                        {detail.legalHold ? 'HOLD ACTIVE' : 'NO HOLD'}
+                      </span>
+                    </div>
+
+                    <p className="text-[11px] text-zinc-600 leading-relaxed">
+                      Under Section 8(7) of the Digital Personal Data Protection Act, 2023, data necessary for legal compliance, regulatory inquiries, or ongoing proceedings must be retained notwithstanding an erasure request. When active, automatic purging and erasure requests are strictly prevented.
+                    </p>
+
+                    {detail.legalHold && detail.legalHoldReason && (
+                      <div className="p-2.5 bg-rose-100/60 rounded border border-rose-200 text-[11px] font-mono text-rose-900">
+                        <strong>Hold Reason:</strong> {detail.legalHoldReason}
+                      </div>
+                    )}
+
+                    <div className="pt-2 border-t border-zinc-200 flex justify-end">
+                      <button
+                        type="button"
+                        disabled={privacyLoading}
+                        onClick={() => {
+                          if (detail.legalHold) {
+                            handleToggleLegalHold();
+                          } else {
+                            setShowHoldModal(true);
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded text-xs font-semibold transition flex items-center gap-1.5 ${
+                          detail.legalHold
+                            ? 'bg-white hover:bg-zinc-100 text-rose-700 border border-rose-300'
+                            : 'bg-zinc-900 hover:bg-zinc-800 text-white'
+                        }`}
+                      >
+                        <Lock className="w-3.5 h-3.5" />
+                        <span>{detail.legalHold ? 'Release Legal Hold' : 'Place Under Legal Hold'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Candidate Data Subject Access Request (DSAR) Card */}
+                  <div className="p-4 bg-zinc-50 rounded-lg border border-zinc-200 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Download className="w-4 h-4 text-blue-600" />
+                      <span className="font-semibold text-zinc-900 text-xs">Data Portability & DSAR Export</span>
+                    </div>
+                    <p className="text-[11px] text-zinc-600 leading-relaxed">
+                      Candidates have the right to access a summary of their personal data processed by this Data Fiduciary under Section 11 of the DPDP Act 2023. Generates a machine-readable JSON archive of candidate profile, submissions, and proctoring telemetry.
+                    </p>
+                    <div className="pt-2 border-t border-zinc-200 flex justify-end">
+                      <button
+                        type="button"
+                        disabled={privacyLoading}
+                        onClick={handleExportDSAR}
+                        className="px-3 py-1.5 bg-white hover:bg-zinc-100 text-zinc-800 border border-zinc-300 rounded text-xs font-semibold transition flex items-center gap-1.5"
+                      >
+                        <Download className="w-3.5 h-3.5 text-zinc-600" />
+                        <span>Export Candidate Data Record (JSON)</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Candidate Erasure / Anonymization Card */}
+                  <div className="p-4 bg-zinc-50 rounded-lg border border-zinc-200 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Trash2 className="w-4 h-4 text-rose-600" />
+                      <span className="font-semibold text-zinc-900 text-xs">Right to Erasure & De-identification</span>
+                    </div>
+                    <p className="text-[11px] text-zinc-600 leading-relaxed">
+                      Permanent deletion of candidate personal identifiable information (name, contact details, uploaded resume files, and webcam snapshots). Under applicable compliance principles, an anonymized skeleton and tamper-resistant audit trail are retained according to the applicable audit/log retention policy.
+                    </p>
+                    <div className="pt-2 border-t border-zinc-200 flex items-center justify-between">
+                      {detail.legalHold ? (
+                        <span className="text-[11px] text-rose-600 font-medium">
+                          Erasure is locked while Legal Retention Hold is active.
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-zinc-400 font-mono">
+                          Action is irreversible once confirmed.
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        disabled={privacyLoading || detail.legalHold}
+                        onClick={() => setShowEraseModal(true)}
+                        className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded text-xs font-semibold transition flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Request Personal Data Erasure</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </>
           )}
 
@@ -944,6 +1173,85 @@ export const CandidateDetailDrawer: React.FC<CandidateDetailDrawerProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Legal Hold Reason Modal */}
+      {showHoldModal && (
+        <div className="fixed inset-0 z-50 bg-zinc-900/60 flex items-center justify-center p-4">
+          <div className="bg-white border border-zinc-200 rounded-lg p-6 max-w-md w-full space-y-4 text-xs">
+            <div className="flex items-center space-x-2 text-zinc-900 font-bold text-sm">
+              <Lock className="w-4 h-4 text-rose-600" />
+              <span>Apply Compliance Legal Hold</span>
+            </div>
+            <p className="text-zinc-600 leading-relaxed">
+              Applying a legal hold suspends automated retention purging and blocks candidate erasure requests pursuant to statutory compliance requirements.
+            </p>
+            <div>
+              <label className="block text-zinc-700 font-semibold mb-1">Retention / Investigation Reason:</label>
+              <textarea
+                rows={3}
+                placeholder="e.g., Formal regulatory review, legal inquiry, or audit preservation obligation"
+                value={holdReasonInput}
+                onChange={(e) => setHoldReasonInput(e.target.value)}
+                className="w-full bg-white border border-zinc-300 rounded p-2 text-zinc-900"
+              />
+            </div>
+            <div className="flex justify-end space-x-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowHoldModal(false)}
+                className="px-3 py-1.5 bg-zinc-100 text-zinc-700 rounded"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={privacyLoading}
+                onClick={handleToggleLegalHold}
+                className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded font-medium"
+              >
+                Confirm Legal Hold
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Candidate Erasure Confirmation Modal */}
+      {showEraseModal && (
+        <div className="fixed inset-0 z-50 bg-zinc-900/60 flex items-center justify-center p-4">
+          <div className="bg-white border border-rose-200 rounded-lg p-6 max-w-md w-full space-y-4 text-xs">
+            <div className="flex items-center space-x-2 text-rose-900 font-bold text-sm">
+              <Trash2 className="w-4 h-4 text-rose-600" />
+              <span>Confirm Data Subject Erasure</span>
+            </div>
+            <p className="text-zinc-700 leading-relaxed">
+              Are you sure you want to erase this candidate's personal data?
+            </p>
+            <ul className="text-zinc-600 space-y-1 list-disc list-inside bg-rose-50/60 p-3 rounded border border-rose-200 text-[11px]">
+              <li>Candidate identity fields (name, email, phone) will be anonymized.</li>
+              <li>Resume and webcam proctoring frames will be unlinked and purged from disk.</li>
+              <li>A tamper-resistant audit trail is retained according to the applicable audit/log retention policy.</li>
+            </ul>
+            <div className="flex justify-end space-x-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowEraseModal(false)}
+                className="px-3 py-1.5 bg-zinc-100 text-zinc-700 rounded"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={privacyLoading}
+                onClick={handleEraseCandidateData}
+                className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded font-medium"
+              >
+                Erase Personal Data
+              </button>
+            </div>
           </div>
         </div>
       )}

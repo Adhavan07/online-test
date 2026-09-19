@@ -3,11 +3,16 @@ import type { Transporter } from 'nodemailer';
 import { prisma } from '../lib/prisma.js';
 
 export interface EmailPayload {
-  recipientEmail: string;
+  recipientEmail?: string;
+  to?: string;
   subject: string;
-  type: 'INVITATION' | 'OTP_VERIFICATION' | 'PASS_ALERT' | 'REJECTION' | 'REMINDER' | 'INTERVIEW_INVITE' | 'SYSTEM';
-  content: string;
+  type?: 'INVITATION' | 'OTP_VERIFICATION' | 'PASS_ALERT' | 'REJECTION' | 'REMINDER' | 'INTERVIEW_INVITE' | 'SYSTEM' | 'MARKETING' | 'TRANSACTIONAL';
+  messageType?: 'INVITATION' | 'OTP_VERIFICATION' | 'PASS_ALERT' | 'REJECTION' | 'REMINDER' | 'INTERVIEW_INVITE' | 'SYSTEM' | 'MARKETING' | 'TRANSACTIONAL';
+  content?: string;
+  html?: string;
   htmlContent?: string;
+  isTransactional?: boolean; // Default true for recruitment workflow
+  unsubscribeToken?: string;
 }
 
 export interface SmtpConfig {
@@ -209,6 +214,7 @@ export class EmailService {
    */
   static async sendEmail(payload: EmailPayload): Promise<{
     success: boolean;
+    suppressed?: boolean;
     logId: string;
     transport: string;
     previewUrl?: string;
@@ -219,6 +225,42 @@ export class EmailService {
     let previewUrl: string | undefined;
     let errorMessage: string | undefined;
 
+    const recipient = (payload.recipientEmail || payload.to || '').toLowerCase().trim();
+    const emailType = (payload.type || payload.messageType || 'SYSTEM') as any;
+    const emailContent = payload.content || payload.html || payload.htmlContent || '';
+    const isTransactional = payload.isTransactional !== undefined
+      ? payload.isTransactional
+      : (emailType !== 'MARKETING');
+
+    // Check suppression list for non-transactional marketing communications
+    if (!isTransactional && recipient) {
+      const suppressed = await prisma.emailSuppression.findUnique({
+        where: { email: recipient },
+      });
+
+      if (suppressed) {
+        console.log(`[EMAIL SERVICE] 🛑 Aborting marketing email to suppressed recipient: ${recipient}`);
+        const log = await prisma.emailLog.create({
+          data: {
+            recipientEmail: recipient,
+            subject: payload.subject,
+            type: emailType,
+            content: emailContent,
+            status: 'SUPPRESSED',
+            transport: 'SUPPRESSED',
+            errorMessage: 'Recipient email is on suppression registry (opted out)',
+          },
+        });
+        return {
+          success: false,
+          suppressed: true,
+          logId: log.id,
+          transport: 'SUPPRESSED',
+          error: 'Recipient email is on suppression registry (opted out)',
+        };
+      }
+    }
+
     try {
       const { transporter, transportType: tType, isRealSmtp } = await this.getTransporter();
       transportType = tType;
@@ -226,14 +268,17 @@ export class EmailService {
       const smtpConfig = await this.getSmtpConfig();
       const senderFrom = smtpConfig.from || `"TechScreen Pro" <${smtpConfig.user || 'no-reply@techscreen.io'}>`;
 
-      console.log(`[EMAIL SERVICE] Transmitting ${payload.type} via ${transportType} to ${payload.recipientEmail}...`);
+      console.log(`[EMAIL SERVICE] Transmitting ${emailType} via ${transportType} to ${recipient}...`);
 
       const info = await transporter.sendMail({
         from: senderFrom,
-        to: payload.recipientEmail,
+        to: recipient,
         subject: payload.subject,
-        text: payload.content,
-        html: payload.htmlContent || this.wrapHtml(payload.subject, payload.content),
+        text: emailContent,
+        html: payload.htmlContent || payload.html || this.wrapHtml(payload.subject, emailContent, undefined, {
+          isTransactional,
+          unsubscribeToken: payload.unsubscribeToken,
+        }),
       });
 
       if (!isRealSmtp) {
@@ -244,10 +289,10 @@ export class EmailService {
           console.log(`[EMAIL SERVICE] 🌐 Ethereal Preview URL: ${previewUrl}`);
         }
       } else {
-        console.log(`[EMAIL SERVICE] ✅ Sent successfully via ${transportType} to ${payload.recipientEmail} (ID: ${info.messageId})`);
+        console.log(`[EMAIL SERVICE] ✅ Sent successfully via ${transportType} to ${recipient} (ID: ${info.messageId})`);
       }
     } catch (err: any) {
-      console.error(`[EMAIL SERVICE] ❌ Delivery failed to ${payload.recipientEmail}:`, err.message);
+      console.error(`[EMAIL SERVICE] ❌ Delivery failed to ${recipient}:`, err.message);
       status = 'FAILED';
       errorMessage = err.message;
     }
@@ -255,10 +300,10 @@ export class EmailService {
     // Record in EmailLog table
     const log = await prisma.emailLog.create({
       data: {
-        recipientEmail: payload.recipientEmail,
+        recipientEmail: recipient || 'unknown@domain.local',
         subject: payload.subject,
-        type: payload.type,
-        content: payload.content,
+        type: emailType,
+        content: emailContent,
         status,
         transport: transportType,
         previewUrl,
@@ -268,6 +313,7 @@ export class EmailService {
 
     return {
       success: status !== 'FAILED',
+      suppressed: false,
       logId: log.id,
       transport: transportType,
       previewUrl,
@@ -278,8 +324,13 @@ export class EmailService {
   /**
    * HTML wrapper for clean, responsive, high-aesthetic emails
    */
-  private static wrapHtml(title: string, bodyText: string, actionButton?: { text: string; url: string }): string {
-    const formattedBody = bodyText
+  private static wrapHtml(
+    title: string,
+    bodyText: string = '',
+    actionButton?: { text: string; url: string },
+    options?: { isTransactional?: boolean; unsubscribeToken?: string }
+  ): string {
+    const formattedBody = (bodyText || '')
       .split('\n')
       .map(line => line.trim())
       .filter(line => line.length > 0)
@@ -300,6 +351,20 @@ export class EmailService {
       <p style="font-size: 11px; color: #6b7280; text-align: center; word-break: break-all; margin-top: 10px;">
         Or copy and paste this link in your browser:<br/>
         <a href="${actionButton.url}" style="color: #2563eb; text-decoration: underline;">${actionButton.url}</a>
+      </p>
+    ` : '';
+
+    const legalEntity = process.env.LEGAL_ENTITY_NAME || '[Configured by Workspace Administrator]';
+    const legalAddress = process.env.LEGAL_POSTAL_ADDRESS || '[Configured Registered Address, India]';
+    const baseUrl = process.env.APP_BASE_URL || 'http://localhost:3000';
+
+    // Only non-transactional marketing messages include a signed unsubscribe token link.
+    // Transactional security & assessment emails do NOT include marketing unsubscribe links.
+    const unsubscribeHtml = (!options?.isTransactional && options?.unsubscribeToken) ? `
+      <p style="margin: 8px 0 0 0; font-size: 11px; color: #71717a;">
+        <a href="${baseUrl}/api/legal/unsubscribe?token=${options.unsubscribeToken}" style="color: #2563eb; text-decoration: underline;">
+          Unsubscribe from marketing communications
+        </a>
       </p>
     ` : '';
 
@@ -343,10 +408,13 @@ export class EmailService {
                 <!-- Footer -->
                 <tr>
                   <td style="background-color: #fafafa; padding: 18px 28px; border-top: 1px solid #f4f4f5; text-align: center;">
-                    <p style="margin: 0; font-size: 11px; color: #71717a; line-height: 1.5;">
-                      This is an automated communication from the TechScreen Pro evaluation platform.<br/>
-                      Ensure your camera and microphone permissions are granted before starting.
+                    <p style="margin: 0 0 6px 0; font-size: 11px; color: #71717a; line-height: 1.5;">
+                      This is an automated recruitment communication from <strong>${legalEntity}</strong>.
                     </p>
+                    <p style="margin: 0; font-size: 10px; color: #a1a1aa; line-height: 1.4;">
+                      ${legalAddress}
+                    </p>
+                    ${unsubscribeHtml}
                   </td>
                 </tr>
               </table>

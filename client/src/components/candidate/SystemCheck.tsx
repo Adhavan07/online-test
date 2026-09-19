@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Camera, Mic, Monitor, Globe, ShieldCheck, ArrowRight, AlertTriangle, RefreshCw } from 'lucide-react';
 
+import { LegalModal } from '../legal/LegalModal';
+
 interface SystemCheckProps {
-  onSystemCheckComplete: () => void;
+  onSystemCheckComplete: (consentData: { consentRecorded: boolean; consentVersion: string; declaredAge?: number }) => void;
   jobTitle: string;
   cameraRequired?: boolean;
   microphoneRequired?: boolean;
@@ -21,7 +23,11 @@ export const SystemCheck: React.FC<SystemCheckProps> = ({
   screenShareRequired = true,
   fullscreenRequired = true,
 }) => {
-  const [agreed, setAgreed] = useState(false);
+  const [agreedConsent, setAgreedConsent] = useState(false);
+  const [agreedAge, setAgreedAge] = useState(false);
+  const [declaredAge, setDeclaredAge] = useState<number>(18);
+  const [legalModalOpen, setLegalModalOpen] = useState(false);
+  const [legalModalTab, setLegalModalTab] = useState<'privacy' | 'terms' | 'proctoring' | 'grievance'>('privacy');
   const [cameraStatus, setCameraStatus] = useState<DeviceStatus>('INITIAL');
   const [micStatus, setMicStatus] = useState<DeviceStatus>('INITIAL');
   const [screenStatus, setScreenStatus] = useState<ScreenStatus>('INITIAL');
@@ -131,7 +137,8 @@ export const SystemCheck: React.FC<SystemCheckProps> = ({
   const hasHardwareIssues = cameraStatus === 'DENIED' || micStatus === 'DENIED' || screenStatus === 'DENIED';
 
   const canProceed =
-    agreed &&
+    agreedConsent &&
+    agreedAge &&
     cameraPassed &&
     micPassed &&
     screenPassed &&
@@ -158,7 +165,11 @@ export const SystemCheck: React.FC<SystemCheckProps> = ({
       }
     }
 
-    onSystemCheckComplete();
+    onSystemCheckComplete({
+      consentRecorded: true,
+      consentVersion: 'DPDP-2025-V1',
+      declaredAge: Number(declaredAge) || 18,
+    });
   };
 
   const renderBadge = (status: DeviceStatus | ScreenStatus | 'STABLE' | 'UNSTABLE') => {
@@ -342,27 +353,84 @@ export const SystemCheck: React.FC<SystemCheckProps> = ({
         </button>
       </div>
 
-      {/* Rules & Guidelines */}
-      <div className="bg-zinc-50 p-4 rounded border border-zinc-200 space-y-2.5 text-xs">
-        <h4 className="font-mono font-semibold text-zinc-700 uppercase tracking-wider text-[11px]">
-          Proctoring Protocol Guidelines
-        </h4>
+      {/* Rules, DPDP Notice & Consent Guidelines */}
+      <div className="bg-zinc-50 p-4 rounded border border-zinc-200 space-y-3 text-xs">
+        <div className="flex items-center justify-between">
+          <h4 className="font-mono font-semibold text-zinc-700 uppercase tracking-wider text-[11px]">
+            Proctoring & Data Privacy Protocol
+          </h4>
+          <div className="flex space-x-2 text-[11px]">
+            <button
+              type="button"
+              onClick={() => { setLegalModalTab('privacy'); setLegalModalOpen(true); }}
+              className="text-zinc-600 hover:text-zinc-900 underline font-medium"
+            >
+              DPDP Notice
+            </button>
+            <span className="text-zinc-300">|</span>
+            <button
+              type="button"
+              onClick={() => { setLegalModalTab('proctoring'); setLegalModalOpen(true); }}
+              className="text-zinc-600 hover:text-zinc-900 underline font-medium"
+            >
+              Proctoring Advisory
+            </button>
+            <span className="text-zinc-300">|</span>
+            <button
+              type="button"
+              onClick={() => { setLegalModalTab('grievance'); setLegalModalOpen(true); }}
+              className="text-zinc-600 hover:text-zinc-900 underline font-medium"
+            >
+              Grievance Redressal
+            </button>
+          </div>
+        </div>
+
         <ul className="text-zinc-600 space-y-1 list-disc list-inside">
           <li>Each question carries a strict <strong>60-second timer</strong> that auto-advances upon expiry.</li>
-          <li>Tab switching, window unfocusing, and copy-pasting are monitored and logged in real-time.</li>
-          <li>Screen sharing must remain enabled for the duration of the assessment.</li>
-          <li>Ensure your environment is well-lit and free from external distractions.</li>
+          <li>Tab switching, window unfocusing, and copy-pasting are logged in real-time.</li>
+          <li>Webcam snapshots and screen integrity data are collected strictly for evaluation verification under tenant retention policy.</li>
+          <li>You retain rights to access, summary, and consent withdrawal under applicable data protection frameworks.</li>
         </ul>
 
-        <label className="flex items-center space-x-2.5 cursor-pointer pt-2 border-t border-zinc-200">
+        {/* DPDP Consent Checkbox */}
+        <label className="flex items-start space-x-2.5 cursor-pointer pt-2 border-t border-zinc-200">
           <input
             type="checkbox"
-            checked={agreed}
-            onChange={(e) => setAgreed(e.target.checked)}
-            className="h-3.5 w-3.5 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900"
+            checked={agreedConsent}
+            onChange={(e) => setAgreedConsent(e.target.checked)}
+            className="h-3.5 w-3.5 mt-0.5 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900"
           />
-          <span className="font-semibold text-zinc-900 text-xs">I acknowledge and accept the evaluation proctoring protocol.</span>
+          <span className="text-zinc-800 text-xs">
+            <strong>Consent to Processing:</strong> I consent to the collection and processing of my candidate assessment data, proctoring snapshots, and technical telemetry solely for this technical evaluation.
+          </span>
         </label>
+
+        {/* Age Assurance Checkbox & Selector */}
+        <div className="pt-2 border-t border-zinc-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <label className="flex items-start space-x-2.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={agreedAge}
+              onChange={(e) => setAgreedAge(e.target.checked)}
+              className="h-3.5 w-3.5 mt-0.5 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900"
+            />
+            <span className="text-zinc-800 text-xs">
+              <strong>Age Assurance:</strong> I declare that I am at least 18 years of age (or meet the minimum age required for this recruitment / apprenticeship program).
+            </span>
+          </label>
+          <div className="flex items-center space-x-1.5 pl-6 sm:pl-0">
+            <span className="text-[11px] text-zinc-500">Age:</span>
+            <input
+              type="number"
+              min={14}
+              max={100}
+              value={declaredAge}
+              onChange={(e) => setDeclaredAge(parseInt(e.target.value) || 18)}
+              className="w-14 px-1.5 py-0.5 text-xs border border-zinc-300 rounded font-mono text-center focus:ring-zinc-900 focus:border-zinc-900"
+            />
+          </div>
+        </div>
       </div>
 
       {/* Start Button */}
@@ -375,6 +443,12 @@ export const SystemCheck: React.FC<SystemCheckProps> = ({
         <ArrowRight className="h-3.5 w-3.5" />
       </button>
 
+      {/* Legal & Compliance Modal */}
+      <LegalModal
+        isOpen={legalModalOpen}
+        onClose={() => setLegalModalOpen(false)}
+        defaultTab={legalModalTab}
+      />
     </div>
   );
 };

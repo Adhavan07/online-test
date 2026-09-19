@@ -328,6 +328,11 @@ candidatesRouter.get('/detail/:applicationId', authenticateToken, requireRole(['
         },
         status: application.status,
         token: application.token,
+        legalHold: application.legalHold,
+        legalHoldReason: application.legalHoldReason,
+        consentRecorded: application.consentRecorded,
+        consentVersion: application.consentVersion,
+        consentRecordedAt: application.consentRecordedAt,
         resumeMatch: await (async () => {
           let jobSkills: string[] = [];
           try {
@@ -1247,5 +1252,337 @@ candidatesRouter.get('/:applicationId/snapshots/:filename', authenticateToken, r
     fs.createReadStream(fullPath).pipe(res);
   } catch (err: any) {
     res.status(500).json({ success: false, error: 'Failed to stream snapshot.' });
+  }
+});
+
+/**
+ * DPDP Section 11: Candidate Data Subject Access Request (DSAR) Export
+ * Generates a structured JSON export of all personal data held for the candidate.
+ */
+candidatesRouter.get('/:applicationId/export-data', authenticateToken, requireRole(['RECRUITER', 'ADMIN', 'HR_ADMIN']), async (req: AuthenticatedRequest, res) => {
+  const { applicationId } = req.params;
+
+  try {
+    const application = await prisma.jobApplication.findUnique({
+      where: { id: applicationId },
+      include: {
+        candidate: true,
+        job: { include: { company: true } },
+        attempts: {
+          include: {
+            result: true,
+            answers: true,
+            proctoringLogs: {
+              select: {
+                id: true,
+                eventType: true,
+                timestamp: true,
+                details: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!application) {
+      return res.status(404).json({ success: false, error: 'Application record not found.' });
+    }
+
+    const isSuperAdmin = req.user?.role === 'ADMIN' && !req.user?.companyId;
+    if (!isSuperAdmin && req.user?.companyId !== application.job.companyId) {
+      return res.status(403).json({ success: false, error: 'Forbidden: Access denied across tenant boundary.' });
+    }
+
+    const dsarExport = {
+      complianceFramework: 'Digital Personal Data Protection Act, 2023 (Section 11 Access Request)',
+      exportedAt: new Date(),
+      dataPrincipal: {
+        candidateId: application.candidate.id,
+        name: application.candidate.name,
+        email: application.candidate.email,
+        phone: application.candidate.phone,
+        appliedAt: application.createdAt,
+      },
+      dataFiduciary: {
+        companyId: application.job.company.id,
+        companyName: application.job.company.name,
+        jobTitle: application.job.title,
+      },
+      consentAudit: {
+        consentRecorded: application.consentRecorded,
+        consentVersion: application.consentVersion,
+        consentRecordedAt: application.consentRecordedAt,
+      },
+      legalStatus: {
+        applicationStatus: application.status,
+        legalHold: application.legalHold,
+        legalHoldReason: application.legalHoldReason,
+      },
+      professionalData: {
+        resumeFileName: application.resumeFileName,
+        resumeParsedSkills: application.resumeParsedSkills ? JSON.parse(application.resumeParsedSkills) : [],
+        resumeMatchScore: application.resumeMatchScore,
+      },
+      evaluations: application.attempts.map(attempt => ({
+        attemptId: attempt.id,
+        startedAt: attempt.startedAt,
+        submittedAt: attempt.submittedAt,
+        integrityScore: attempt.integrityScore,
+        proctoringRiskScore: attempt.proctoringRiskScore,
+        proctoringRiskLevel: attempt.proctoringRiskLevel,
+        totalViolationsCount: attempt.proctoringLogs.length,
+        proctoringTimeline: attempt.proctoringLogs,
+        result: attempt.result ? {
+          percentage: attempt.result.percentage,
+          isPassed: attempt.result.isPassed,
+          evaluatedAt: attempt.result.evaluatedAt,
+        } : null,
+      })),
+    };
+
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user?.id,
+        userName: req.user?.name,
+        companyId: application.job.companyId,
+        action: 'DPDP_DATA_EXPORTED',
+        entity: 'JobApplication',
+        details: `DSAR Personal Data Export generated for application ${application.id}`,
+      },
+    });
+
+    res.json({
+      success: true,
+      dsarExport,
+      exportMetadata: {
+        complianceFramework: dsarExport.complianceFramework,
+        exportedAt: dsarExport.exportedAt,
+      },
+      candidate: dsarExport.dataPrincipal,
+      consentDetails: dsarExport.consentAudit,
+      proctoringTelemetry: dsarExport.evaluations,
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: 'Failed to compile DSAR export: ' + err.message });
+  }
+});
+
+/**
+ * DPDP Compliance: Manage Legal Hold on Candidate Record
+ * Prevents erasure when data must be retained for statutory/regulatory obligations or active disputes.
+ */
+candidatesRouter.patch('/:applicationId/legal-hold', authenticateToken, requireRole(['RECRUITER', 'ADMIN', 'HR_ADMIN']), async (req: AuthenticatedRequest, res) => {
+  const { applicationId } = req.params;
+  const { legalHold, reason } = req.body;
+
+  if (typeof legalHold !== 'boolean') {
+    return res.status(400).json({ success: false, error: 'legalHold boolean field is required.' });
+  }
+
+  try {
+    const application = await prisma.jobApplication.findUnique({
+      where: { id: applicationId },
+      include: { job: true },
+    });
+
+    if (!application) {
+      return res.status(404).json({ success: false, error: 'Application record not found.' });
+    }
+
+    const isSuperAdmin = req.user?.role === 'ADMIN' && !req.user?.companyId;
+    if (!isSuperAdmin && req.user?.companyId !== application.job.companyId) {
+      return res.status(403).json({ success: false, error: 'Forbidden: Access denied across tenant boundary.' });
+    }
+
+    const updated = await prisma.jobApplication.update({
+      where: { id: applicationId },
+      data: {
+        legalHold,
+        legalHoldReason: legalHold ? (reason || 'Administrative/Statutory Legal Hold') : null,
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user?.id,
+        userName: req.user?.name,
+        companyId: application.job.companyId,
+        action: legalHold ? 'LEGAL_HOLD_PLACED' : 'LEGAL_HOLD_REMOVED',
+        entity: 'JobApplication',
+        details: `Legal hold ${legalHold ? 'activated' : 'deactivated'} for application ${application.id}: ${reason || 'N/A'}`,
+      },
+    });
+
+    res.json({
+      success: true,
+      legalHold: updated.legalHold,
+      legalHoldReason: updated.legalHoldReason,
+      message: `Legal Hold ${legalHold ? 'successfully placed' : 'successfully removed'}.`,
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: 'Failed to update legal hold: ' + err.message });
+  }
+});
+
+/**
+ * DPDP Section 12: Candidate Right to Erasure / Anonymization
+ * Erases PII and physical media, strictly enforcing active Legal Hold check.
+ */
+candidatesRouter.delete('/:applicationId/personal-data', authenticateToken, requireRole(['RECRUITER', 'ADMIN', 'HR_ADMIN']), async (req: AuthenticatedRequest, res) => {
+  const { applicationId } = req.params;
+
+  try {
+    const application = await prisma.jobApplication.findUnique({
+      where: { id: applicationId },
+      include: {
+        job: true,
+        candidate: true,
+        attempts: true,
+      },
+    });
+
+    if (!application) {
+      return res.status(404).json({ success: false, error: 'Application record not found.' });
+    }
+
+    const isSuperAdmin = req.user?.role === 'ADMIN' && !req.user?.companyId;
+    if (!isSuperAdmin && req.user?.companyId !== application.job.companyId) {
+      return res.status(403).json({ success: false, error: 'Forbidden: Access denied across tenant boundary.' });
+    }
+
+    // MANDATORY EXCEPTION: Check for active Legal Hold
+    if (application.legalHold) {
+      return res.status(409).json({
+        success: false,
+        error: 'Cannot erase candidate personal data: Active Legal Hold is in effect for statutory compliance or ongoing dispute.',
+        legalHoldReason: application.legalHoldReason,
+      });
+    }
+
+    // 1. Delete physical resume file from disk
+    if (application.resumeUrl) {
+      const resolvedResumePath = storageService.resolveLocalPath(application.resumeUrl);
+      if (fs.existsSync(resolvedResumePath)) {
+        try {
+          fs.unlinkSync(resolvedResumePath);
+        } catch (fileErr) {
+          console.warn('[DPDP ERASURE] Failed to unlink resume file:', fileErr);
+        }
+      }
+    }
+
+    // 2. Delete all physical webcam proctoring snapshots from disk
+    const tenantProctoringDir = path.resolve(process.cwd(), 'uploads', 'tenants', application.job.companyId, 'proctoring');
+    if (fs.existsSync(tenantProctoringDir)) {
+      try {
+        const files = fs.readdirSync(tenantProctoringDir);
+        for (const f of files) {
+          if (f.includes(application.id) || f.includes(application.candidateId)) {
+            const filePath = path.join(tenantProctoringDir, f);
+            if (fs.existsSync(filePath)) {
+              fs.unlinkSync(filePath);
+            }
+          }
+        }
+      } catch (proctorErr) {
+        console.warn('[DPDP ERASURE] Error cleaning proctoring snapshots:', proctorErr);
+      }
+    }
+
+    // 3. Anonymize candidate PII and clear sensitive details
+    const anonymizedEmail = `anonymized-${application.id.slice(0, 8)}@redacted.local`;
+    await prisma.$transaction([
+      prisma.candidate.update({
+        where: { id: application.candidateId },
+        data: {
+          name: '[Anonymized Candidate]',
+          email: anonymizedEmail,
+          phone: null,
+          resumeUrl: null,
+          resumeFileName: null,
+        },
+      }),
+      prisma.jobApplication.update({
+        where: { id: application.id },
+        data: {
+          status: 'ANONYMIZED',
+          resumeUrl: null,
+          resumeFileName: null,
+          resumeParsedText: null,
+          resumeParsedSkills: null,
+          interviewLink: null,
+        },
+      }),
+      prisma.auditLog.create({
+        data: {
+          userId: req.user?.id,
+          userName: req.user?.name,
+          companyId: application.job.companyId,
+          action: 'DPDP_DATA_ERASED',
+          entity: 'JobApplication',
+          details: `Candidate PII and associated media erased under DPDP Section 12 for application ${application.id}`,
+        },
+      }),
+    ]);
+
+    res.json({
+      success: true,
+      message: 'Candidate personal data and media successfully erased under DPDP Section 12.',
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: 'Failed to erase personal data: ' + err.message });
+  }
+});
+
+/**
+ * DPDP Section 6: Candidate Right to Withdraw Consent
+ * Halts assessment processing and marks session as CONSENT_WITHDRAWN.
+ */
+candidatesRouter.post('/:applicationId/withdraw-consent', authenticateToken, requireRole(['RECRUITER', 'ADMIN', 'HR_ADMIN']), async (req: AuthenticatedRequest, res) => {
+  const { applicationId } = req.params;
+
+  try {
+    const application = await prisma.jobApplication.findUnique({
+      where: { id: applicationId },
+      include: { job: true },
+    });
+
+    if (!application) {
+      return res.status(404).json({ success: false, error: 'Application record not found.' });
+    }
+
+    const isSuperAdmin = req.user?.role === 'ADMIN' && !req.user?.companyId;
+    if (!isSuperAdmin && req.user?.companyId !== application.job.companyId) {
+      return res.status(403).json({ success: false, error: 'Forbidden: Access denied across tenant boundary.' });
+    }
+
+    await prisma.$transaction([
+      prisma.jobApplication.update({
+        where: { id: applicationId },
+        data: {
+          status: 'CONSENT_WITHDRAWN',
+          consentRecorded: false,
+          tokenExpiresAt: new Date(0), // expire token immediately
+        },
+      }),
+      prisma.auditLog.create({
+        data: {
+          userId: req.user?.id,
+          userName: req.user?.name,
+          companyId: application.job.companyId,
+          action: 'DPDP_CONSENT_WITHDRAWN',
+          entity: 'JobApplication',
+          details: `Consent withdrawal recorded for application ${application.id}. Assessment token invalidated.`,
+        },
+      }),
+    ]);
+
+    res.json({
+      success: true,
+      message: 'Candidate consent withdrawal recorded. Evaluation session terminated.',
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: 'Failed to record consent withdrawal: ' + err.message });
   }
 });

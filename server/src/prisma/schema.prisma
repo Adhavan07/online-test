@@ -136,6 +136,11 @@ model JobApplication {
   resumeParsedSkills   String?            // JSON array of detected candidate skills
   rankingScore         Float?             // Composite score: Tech(60%) + Resume(30%) - Risk Penalty(10%)
   recommendation       String?            // STRONG_CANDIDATE, POTENTIAL_MATCH, MANUAL_REVIEW, REJECT
+  legalHold            Boolean            @default(false)
+  legalHoldReason      String?
+  consentRecorded      Boolean            @default(false)
+  consentVersion       String?
+  consentRecordedAt    DateTime?
   attempts             AssessmentAttempt[]
   notes                RecruiterNote[]
   liveSessions         LiveInterviewSession[]
@@ -300,5 +305,23 @@ model WebhookConfig {
   companyId        String?
   company          Company?  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   createdAt        DateTime  @default(now())
+}
+
+model EmailSuppression {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  reason    String?  @default("UNSUBSCRIBED")
+  createdAt DateTime @default(now())
+}
+
+model UnsubscribeToken {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  email     String
+  isUsed    Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([tokenHash])
 }
 

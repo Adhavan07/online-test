@@ -14,13 +14,14 @@ import { ToastProvider } from './components/common/Toast';
 import { LoginPage } from './components/auth/LoginPage';
 import { getStoredUser, clearStoredSession, UserSession } from './lib/auth';
 import { TenantProvider } from './lib/TenantContext';
+import { UnsubscribeView } from './components/legal/UnsubscribeView';
 
 export const AppContent: React.FC = () => {
   // Session State
   const [currentUser, setCurrentUser] = useState<UserSession | null>(getStoredUser());
 
   // Candidate / Interview standalone routes mode vs Recruiter Workspace
-  const [standaloneMode, setStandaloneMode] = useState<'NONE' | 'CANDIDATE' | 'RESULT' | 'INTERVIEW' | 'BADGE'>('NONE');
+  const [standaloneMode, setStandaloneMode] = useState<'NONE' | 'CANDIDATE' | 'RESULT' | 'INTERVIEW' | 'BADGE' | 'UNSUBSCRIBE'>('NONE');
   
   // Recruiter active view state
   const [activeView, setActiveView] = useState<string>('dashboard');
@@ -33,7 +34,9 @@ export const AppContent: React.FC = () => {
   // Check URL pathname for candidate assessment link /assessment/:token, /interview/:roomToken or /verify/:badgeId
   useEffect(() => {
     const pathname = window.location.pathname;
-    if (pathname.startsWith('/interview/')) {
+    if (pathname.startsWith('/unsubscribe')) {
+      setStandaloneMode('UNSUBSCRIBE');
+    } else if (pathname.startsWith('/interview/')) {
       setStandaloneMode('INTERVIEW');
     } else if (pathname.startsWith('/verify/')) {
       setStandaloneMode('BADGE');
@@ -83,7 +86,11 @@ export const AppContent: React.FC = () => {
     setCurrentUser(null);
   };
 
-  // Isolated views (Candidate Test, Live Sandbox, Verified Skill Badge)
+  // Isolated views (Candidate Test, Live Sandbox, Verified Skill Badge, Email Unsubscribe)
+  if (standaloneMode === 'UNSUBSCRIBE') {
+    return <UnsubscribeView />;
+  }
+
   if (standaloneMode === 'INTERVIEW') {
     return <LiveInterviewRoom />;
   }

@@ -141,7 +141,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ jobs = [
         <div className="px-3 py-1 pt-3 lg:pt-1">
           <div className="text-[11px] font-mono text-zinc-500 uppercase tracking-wider">Avg Integrity Rating</div>
           <div className="text-2xl font-bold text-blue-700 mt-1 font-mono">{metrics.proctoring.avgIntegrityScore}%</div>
-          <div className="text-[11px] text-zinc-500 mt-0.5">Anti-cheat trust rating</div>
+          <div className="text-[11px] text-zinc-500 mt-0.5">Session integrity index</div>
         </div>
       </div>
 
@@ -179,8 +179,8 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ jobs = [
         <div className="bg-white p-5 rounded border border-zinc-200 space-y-4 flex flex-col justify-between">
           <div>
             <div className="pb-2 border-b border-zinc-100">
-              <h3 className="font-bold text-zinc-900 text-sm">Proctoring Security Summary</h3>
-              <p className="text-xs text-zinc-500 mt-0.5">Anti-cheat flags across active assessment sessions.</p>
+              <h3 className="font-bold text-zinc-900 text-sm">Proctoring Verification Summary</h3>
+              <p className="text-xs text-zinc-500 mt-0.5">Integrity review flags across active assessment sessions.</p>
             </div>
 
             <div className="space-y-3 pt-3 text-xs">

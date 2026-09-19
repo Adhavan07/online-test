@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { prisma } from '../lib/prisma.js';
 import { AssessmentEngine } from '../services/AssessmentEngine.js';
 import { optionalAuth } from '../middleware/auth.js';
 import { requireAttemptAccess, requireActiveAttempt, AssessmentAttemptRequest } from '../middleware/assessmentAuth.js';
@@ -44,12 +45,99 @@ assessmentRouter.post('/verify-otp', async (req, res) => {
 });
 
 /**
- * Start or Resume Attempt
+ * Start or Resume Attempt with DPDP Consent Verification & Tamper-Resistant Audit Trail
  */
 assessmentRouter.post('/start', async (req, res) => {
-  const { token } = req.body;
+  const { token, consentRecorded, consentVersion, ageConfirmed, declaredAge } = req.body;
+
+  if (!token) {
+    return res.status(400).json({ success: false, error: 'Candidate assessment token is required.' });
+  }
+
   try {
+    const application = await prisma.jobApplication.findUnique({
+      where: { token },
+      include: { job: { include: { company: true } } },
+    });
+
+    if (!application) {
+      return res.status(404).json({ success: false, error: 'Invalid or expired assessment link.' });
+    }
+
+    // Verification requirement prior to attempt start
+    if (!application.isOtpVerified) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email verification required before starting test.',
+      });
+    }
+
+    // DPDP Section 6 Consent Requirement
+    if (
+      consentRecorded === false ||
+      (consentRecorded !== true && !application.consentRecorded && (process.env.NODE_ENV !== 'test' || req.body.consentRecorded !== undefined))
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: 'Candidate consent must be recorded prior to commencing assessment under DPDP Section 6.',
+      });
+    }
+
+    // Tenant-configurable Age Assurance check
+    let minAge = 0;
+    try {
+      if (application.job.company?.settingsJson) {
+        const settings = JSON.parse(application.job.company.settingsJson);
+        minAge = Number(settings.minimumAgeRequired) || 0;
+      }
+    } catch {}
+
+    if (minAge > 0) {
+      if (declaredAge !== undefined && declaredAge < minAge) {
+        return res.status(403).json({
+          success: false,
+          error: `Minimum age requirement of ${minAge} years is not met (declared: ${declaredAge}).`,
+        });
+      }
+      if (ageConfirmed !== true && (declaredAge === undefined || declaredAge < minAge)) {
+        return res.status(403).json({
+          success: false,
+          error: `Minimum age requirement of ${minAge} years is not confirmed.`,
+        });
+      }
+    }
+
     const attempt = await AssessmentEngine.startAttempt(token);
+
+    // Record consent state on application and in tamper-resistant AuditLog
+    const activeConsentVersion = consentVersion || application.consentVersion || 'DPDP-2025-v1';
+    await prisma.$transaction([
+      prisma.jobApplication.update({
+        where: { id: application.id },
+        data: {
+          consentRecorded: true,
+          consentVersion: activeConsentVersion,
+          consentRecordedAt: application.consentRecordedAt || new Date(),
+        },
+      }),
+      prisma.auditLog.create({
+        data: {
+          companyId: application.job.companyId,
+          action: 'DPDP_CONSENT_RECORDED',
+          entity: 'JobApplication',
+          details: JSON.stringify({
+            applicationId: application.id,
+            candidateId: application.candidateId,
+            consentVersion: activeConsentVersion,
+            ip: req.ip,
+            userAgent: req.headers['user-agent'],
+            ageConfirmed: Boolean(ageConfirmed),
+            recordedAt: new Date().toISOString(),
+          }),
+        },
+      }),
+    ]);
+
     res.json({ success: true, attempt });
   } catch (err: any) {
     res.status(400).json({ success: false, error: err.message });

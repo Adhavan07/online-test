@@ -16,6 +16,7 @@ import { badgesRouter } from './routes/badges.js';
 import { webhooksRouter } from './routes/webhooks.js';
 import { notificationsRouter } from './routes/notifications.js';
 import { tenantsRouter } from './routes/tenants.js';
+import { legalRouter } from './routes/legal.js';
 
 import { securityHeaders } from './middleware/securityHeaders.js';
 import { enforceStartupConfig } from './middleware/auth.js';
@@ -72,6 +73,7 @@ app.use('/api/interviews', interviewsRouter);
 app.use('/api/badges', badgesRouter);
 app.use('/api/webhooks', webhooksRouter);
 app.use('/api/notifications', notificationsRouter);
+app.use('/api/legal', legalRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {

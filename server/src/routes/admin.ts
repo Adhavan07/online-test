@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { EmailService } from '../services/EmailService.js';
+import { RetentionService } from '../services/RetentionService.js';
 import { authenticateToken, requireRole, AuthenticatedRequest } from '../middleware/auth.js';
 
 export const adminRouter = Router();
@@ -241,5 +242,31 @@ adminRouter.post('/email-logs/:id/resend', requireRole(['ADMIN']), async (req: A
     res.json({ success: true, result });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * DPDP Section 8(7): Execute Data Retention Purge for Expired Proctoring Media
+ * Honors active Legal Holds on candidates, safely unlinking expired media.
+ */
+adminRouter.post('/retention/purge-expired', requireRole(['ADMIN', 'HR_ADMIN']), async (req: AuthenticatedRequest, res) => {
+  const companyId = req.user?.companyId || req.body.companyId;
+
+  if (!companyId && req.user?.role !== 'ADMIN') {
+    return res.status(400).json({ success: false, error: 'companyId is required to execute retention purge.' });
+  }
+
+  const { overrideDays } = req.body;
+  const targetCompanyId = companyId || req.body.targetCompanyId;
+
+  if (!targetCompanyId) {
+    return res.status(400).json({ success: false, error: 'Target company ID is required.' });
+  }
+
+  try {
+    const result = await RetentionService.purgeExpiredSnapshots(targetCompanyId, overrideDays ? Number(overrideDays) : undefined);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: 'Failed to execute retention purge: ' + err.message });
   }
 });
