@@ -56,7 +56,7 @@ export const handleResumeUpload = (req: any, res: any, next: any) => {
 /**
  * List Candidate Applications with filters (Authenticated & Scoped)
  */
-candidatesRouter.get('/', authenticateToken, requireRole(['RECRUITER', 'ADMIN', 'TECH_INTERVIEWER']), async (req: AuthenticatedRequest, res) => {
+candidatesRouter.get('/', authenticateToken, requireRole(['RECRUITER', 'HR_ADMIN', 'ADMIN', 'TECH_INTERVIEWER']), async (req: AuthenticatedRequest, res) => {
   const { jobId, status, search } = req.query;
 
   try {
@@ -229,7 +229,7 @@ candidatesRouter.get('/', authenticateToken, requireRole(['RECRUITER', 'ADMIN', 
 /**
  * Candidate Detail view for Recruiter Inspection (Includes Proctoring & Coding Submissions)
  */
-candidatesRouter.get('/detail/:applicationId', authenticateToken, requireRole(['RECRUITER', 'ADMIN', 'TECH_INTERVIEWER']), async (req: AuthenticatedRequest, res) => {
+candidatesRouter.get('/detail/:applicationId', authenticateToken, requireRole(['RECRUITER', 'HR_ADMIN', 'ADMIN', 'TECH_INTERVIEWER']), async (req: AuthenticatedRequest, res) => {
   const { applicationId } = req.params;
 
   try {
@@ -487,6 +487,24 @@ candidatesRouter.post('/apply', handleResumeUpload, async (req, res) => {
       }
     }
 
+    const job = await prisma.job.findUnique({ where: { id: jobId } });
+    if (!job) {
+      if (file) await fs.promises.unlink(file.path).catch(() => {});
+      return res.status(404).json({ success: false, error: 'Job not found' });
+    }
+
+    // Partition resume into tenant-specific directory
+    let resumeUrl = file ? `/uploads/resumes/${file.filename}` : null;
+    if (file && job.companyId) {
+      const tenantDir = path.join(process.cwd(), 'uploads', 'tenants', job.companyId, 'resumes');
+      if (!fs.existsSync(tenantDir)) {
+        await fs.promises.mkdir(tenantDir, { recursive: true });
+      }
+      const tenantFilePath = path.join(tenantDir, file.filename);
+      await fs.promises.rename(file.path, tenantFilePath);
+      resumeUrl = `/uploads/tenants/${job.companyId}/resumes/${file.filename}`;
+    }
+
     let candidate = await prisma.candidate.findUnique({ where: { email: normalizedEmail } });
 
     if (!candidate) {
@@ -495,14 +513,11 @@ candidatesRouter.post('/apply', handleResumeUpload, async (req, res) => {
           name,
           email,
           phone: phone || null,
-          resumeUrl: file ? `/uploads/resumes/${file.filename}` : null,
+          resumeUrl,
           resumeFileName: file ? file.originalname : null,
         }
       });
     }
-
-    const job = await prisma.job.findUnique({ where: { id: jobId } });
-    if (!job) return res.status(404).json({ success: false, error: 'Job not found' });
 
     // Generate 256-bit cryptographically secure assessment token
     const token = `cand-${crypto.randomBytes(32).toString('hex')}`;
@@ -527,7 +542,7 @@ candidatesRouter.post('/apply', handleResumeUpload, async (req, res) => {
         status: 'INVITED',
         token,
         tokenExpiresAt,
-        resumeUrl: file ? `/uploads/resumes/${file.filename}` : null,
+        resumeUrl,
         resumeFileName: file ? file.originalname : null,
         resumeParsedText: parsedResumeText || null,
         resumeMatchScore: initialMatchScore,
@@ -568,7 +583,7 @@ candidatesRouter.post('/apply', handleResumeUpload, async (req, res) => {
 /**
  * Recruiter Action: Bulk CSV Candidate Invitation Dispatcher
  */
-candidatesRouter.post('/bulk-invite', authenticateToken, requireRole(['RECRUITER', 'ADMIN']), async (req: AuthenticatedRequest, res) => {
+candidatesRouter.post('/bulk-invite', authenticateToken, requireRole(['RECRUITER', 'HR_ADMIN', 'ADMIN']), async (req: AuthenticatedRequest, res) => {
   const { jobId, candidates } = req.body;
 
   if (!jobId || !Array.isArray(candidates) || candidates.length === 0) {
@@ -641,7 +656,7 @@ candidatesRouter.post('/bulk-invite', authenticateToken, requireRole(['RECRUITER
 /**
  * Recruiter Action: Export Candidates Roster as CSV File (Scoped)
  */
-candidatesRouter.get('/export-csv', authenticateToken, requireRole(['RECRUITER', 'ADMIN']), async (req: AuthenticatedRequest, res) => {
+candidatesRouter.get('/export-csv', authenticateToken, requireRole(['RECRUITER', 'HR_ADMIN', 'ADMIN']), async (req: AuthenticatedRequest, res) => {
   try {
     const isSuperAdmin = req.user?.role === 'ADMIN' && !req.user?.companyId;
     const whereClause = isSuperAdmin ? {} : { job: { companyId: req.user?.companyId || undefined } };
@@ -693,7 +708,7 @@ candidatesRouter.get('/export-csv', authenticateToken, requireRole(['RECRUITER',
 /**
  * Recruiter Action: Update Application Status (SHORTLISTED, HR_INTERVIEW, REJECTED, etc.)
  */
-candidatesRouter.patch('/:applicationId/status', authenticateToken, requireRole(['RECRUITER', 'ADMIN']), async (req: AuthenticatedRequest, res) => {
+candidatesRouter.patch('/:applicationId/status', authenticateToken, requireRole(['RECRUITER', 'HR_ADMIN', 'ADMIN']), async (req: AuthenticatedRequest, res) => {
   const { applicationId } = req.params;
   const { status } = req.body;
 
@@ -769,7 +784,7 @@ candidatesRouter.patch('/:applicationId/status', authenticateToken, requireRole(
 /**
  * Resend Invitation Email to Candidate
  */
-candidatesRouter.post('/:applicationId/resend-invite', authenticateToken, requireRole(['RECRUITER', 'ADMIN']), async (req: AuthenticatedRequest, res) => {
+candidatesRouter.post('/:applicationId/resend-invite', authenticateToken, requireRole(['RECRUITER', 'HR_ADMIN', 'ADMIN']), async (req: AuthenticatedRequest, res) => {
   const { applicationId } = req.params;
 
   try {
@@ -805,7 +820,7 @@ candidatesRouter.post('/:applicationId/resend-invite', authenticateToken, requir
 /**
  * Recruiter Action: Re-parse uploaded PDF resume and re-evaluate skill match
  */
-candidatesRouter.post('/:applicationId/reparse-resume', authenticateToken, requireRole(['RECRUITER', 'ADMIN']), async (req: AuthenticatedRequest, res) => {
+candidatesRouter.post('/:applicationId/reparse-resume', authenticateToken, requireRole(['RECRUITER', 'HR_ADMIN', 'ADMIN']), async (req: AuthenticatedRequest, res) => {
   const { applicationId } = req.params;
 
   try {
@@ -892,7 +907,7 @@ candidatesRouter.post('/:applicationId/reparse-resume', authenticateToken, requi
 /**
  * Get Team Recruiter Notes for Application
  */
-candidatesRouter.get('/:applicationId/notes', authenticateToken, requireRole(['RECRUITER', 'ADMIN', 'TECH_INTERVIEWER']), async (req: AuthenticatedRequest, res) => {
+candidatesRouter.get('/:applicationId/notes', authenticateToken, requireRole(['RECRUITER', 'HR_ADMIN', 'ADMIN', 'TECH_INTERVIEWER']), async (req: AuthenticatedRequest, res) => {
   const { applicationId } = req.params;
 
   try {
@@ -920,7 +935,7 @@ candidatesRouter.get('/:applicationId/notes', authenticateToken, requireRole(['R
 /**
  * Add Recruiter Team Note & Star Rating
  */
-candidatesRouter.post('/:applicationId/notes', authenticateToken, requireRole(['RECRUITER', 'ADMIN', 'TECH_INTERVIEWER']), async (req: AuthenticatedRequest, res) => {
+candidatesRouter.post('/:applicationId/notes', authenticateToken, requireRole(['RECRUITER', 'HR_ADMIN', 'ADMIN', 'TECH_INTERVIEWER']), async (req: AuthenticatedRequest, res) => {
   const { applicationId } = req.params;
   const { authorName, rating, comment } = req.body;
 
@@ -958,7 +973,7 @@ candidatesRouter.post('/:applicationId/notes', authenticateToken, requireRole(['
 /**
  * Recruiter Action: Reset Assessment Attempt (Allow Candidate Retake)
  */
-candidatesRouter.post('/:applicationId/reset-attempt', authenticateToken, requireRole(['RECRUITER', 'ADMIN']), async (req: AuthenticatedRequest, res) => {
+candidatesRouter.post('/:applicationId/reset-attempt', authenticateToken, requireRole(['RECRUITER', 'HR_ADMIN', 'ADMIN']), async (req: AuthenticatedRequest, res) => {
   const { applicationId } = req.params;
 
   try {
@@ -1017,7 +1032,7 @@ candidatesRouter.post('/:applicationId/reset-attempt', authenticateToken, requir
 /**
  * Recruiter Action: Schedule HR Interview & Send Invitation
  */
-candidatesRouter.post('/:applicationId/schedule-interview', authenticateToken, requireRole(['RECRUITER', 'ADMIN']), async (req: AuthenticatedRequest, res) => {
+candidatesRouter.post('/:applicationId/schedule-interview', authenticateToken, requireRole(['RECRUITER', 'HR_ADMIN', 'ADMIN']), async (req: AuthenticatedRequest, res) => {
   const { applicationId } = req.params;
   const { interviewScheduledAt, interviewLink } = req.body;
 
@@ -1148,6 +1163,14 @@ candidatesRouter.get('/:applicationId/resume', optionalAuth, async (req: Authent
       return res.status(403).json({ success: false, error: 'Access denied: Directory traversal detected.' });
     }
 
+    // Tenant boundary verification on path
+    if (fullPath.includes('/tenants/')) {
+      const expectedTenantDir = path.resolve(safeBaseDir, 'tenants', application.job.companyId);
+      if (!fullPath.startsWith(expectedTenantDir)) {
+        return res.status(403).json({ success: false, error: 'Access denied: Cross-tenant resume file access prohibited.' });
+      }
+    }
+
     if (!fs.existsSync(fullPath)) {
       return res.status(404).json({ success: false, error: 'Resume file not found on disk.' });
     }
@@ -1193,11 +1216,21 @@ candidatesRouter.get('/:applicationId/snapshots/:filename', authenticateToken, r
       return res.status(403).json({ success: false, error: 'Forbidden: You do not own this application.' });
     }
 
-    const safeBaseDir = path.resolve(process.cwd(), 'uploads', 'proctoring');
     const cleanFilename = path.basename(filename);
-    const fullPath = path.resolve(safeBaseDir, cleanFilename);
+    const tenantBaseDir = path.resolve(process.cwd(), 'uploads', 'tenants', application.job.companyId, 'proctoring');
+    const legacyBaseDir = path.resolve(process.cwd(), 'uploads', 'proctoring');
 
-    if (!fullPath.startsWith(safeBaseDir) || !fs.existsSync(fullPath)) {
+    const tenantPath = path.resolve(tenantBaseDir, cleanFilename);
+    const legacyPath = path.resolve(legacyBaseDir, cleanFilename);
+
+    let fullPath: string | null = null;
+    if (fs.existsSync(tenantPath) && tenantPath.startsWith(tenantBaseDir)) {
+      fullPath = tenantPath;
+    } else if (fs.existsSync(legacyPath) && legacyPath.startsWith(legacyBaseDir)) {
+      fullPath = legacyPath;
+    }
+
+    if (!fullPath) {
       return res.status(404).json({ success: false, error: 'Snapshot image not found.' });
     }
 

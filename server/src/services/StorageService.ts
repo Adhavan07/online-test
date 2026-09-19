@@ -89,42 +89,61 @@ export class StorageService {
   }
 
   /**
-   * Resolves absolute local path with strict path-traversal prevention
+   * Resolves absolute local path with strict path-traversal prevention and tenant isolation
    */
-  public resolveLocalPath(filePathOrUrl: string): string {
+  public resolveLocalPath(filePathOrUrl: string, tenantId?: string | null): string {
     const rootUploads = path.resolve(this.uploadsDir);
 
-    // If path is absolute, enforce that it is inside rootUploads
+    let resolved: string;
     if (path.isAbsolute(filePathOrUrl)) {
-      const resolved = path.resolve(filePathOrUrl);
+      // Web URL path starting with /uploads
+      if (filePathOrUrl.startsWith('/uploads') || filePathOrUrl.startsWith('\\uploads')) {
+        const normalized = filePathOrUrl.replace(/^(\/|\\)?(uploads(\/|\\))?/, '');
+        resolved = path.resolve(rootUploads, normalized);
+      } else {
+        // True filesystem absolute path: must be strictly inside rootUploads
+        resolved = path.resolve(filePathOrUrl);
+      }
+
       if (!resolved.startsWith(rootUploads)) {
         throw new Error('Access denied: Path traversal detected.');
       }
-      return resolved;
+    } else {
+      // Block relative traversal sequences
+      if (filePathOrUrl.includes('..')) {
+        throw new Error('Access denied: Path traversal detected.');
+      }
+
+      const normalized = filePathOrUrl.replace(/^(\/|\\)?(uploads(\/|\\))?/, '');
+      resolved = path.resolve(rootUploads, normalized);
+
+      if (!resolved.startsWith(rootUploads)) {
+        throw new Error('Access denied: Path traversal detected.');
+      }
     }
 
-    // Block relative traversal sequences
-    if (filePathOrUrl.includes('..')) {
-      throw new Error('Access denied: Path traversal detected.');
+    // Tenant boundary verification: if file is stored in a tenant folder, ensure it matches tenantId
+    if (tenantId) {
+      const tenantDir = path.join(rootUploads, 'tenants');
+      if (resolved.startsWith(tenantDir)) {
+        const expectedTenantDir = path.resolve(tenantDir, tenantId);
+        if (!resolved.startsWith(expectedTenantDir)) {
+          throw new Error('Access denied: Cross-tenant file access prohibited.');
+        }
+      }
     }
 
-    // Clean leading slash or URL segment
-    const normalized = filePathOrUrl.replace(/^(\/|\\)?(uploads(\/|\\))?/, '');
-    const resolved = path.resolve(rootUploads, normalized);
-
-    if (!resolved.startsWith(rootUploads)) {
-      throw new Error('Access denied: Path traversal detected.');
-    }
     return resolved;
   }
 
   /**
-   * Save a binary buffer to storage with security checks
+   * Save a binary buffer to storage with security checks and tenant partitioning
    */
   public async saveBuffer(
     buffer: Buffer,
     originalName: string,
-    subfolder: 'resumes' | 'proctoring' | 'badges' | 'temp' = 'resumes'
+    subfolder: 'resumes' | 'proctoring' | 'badges' | 'temp' = 'resumes',
+    tenantId?: string | null
   ): Promise<FileStorageResult> {
     // Validate buffer before persisting
     this.validateFileContent(buffer, originalName);
@@ -133,8 +152,10 @@ export class StorageService {
     const sanitizedBase = path.basename(originalName, ext).replace(/[^a-zA-Z0-9_-]/g, '_');
     const finalFilename = `${sanitizedBase}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}${ext}`;
 
+    const partitionSubfolder = tenantId ? path.join('tenants', tenantId, subfolder) : subfolder;
+
     if (this.storageType === 's3' && process.env.S3_BUCKET) {
-      const s3Key = `${subfolder}/${finalFilename}`;
+      const s3Key = `${partitionSubfolder.replace(/\\/g, '/')}/${finalFilename}`;
       return {
         publicUrl: `https://${process.env.S3_BUCKET}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${s3Key}`,
         filePath: s3Key,
@@ -144,7 +165,7 @@ export class StorageService {
     }
 
     // Local Disk Driver
-    const targetDir = path.join(this.uploadsDir, subfolder);
+    const targetDir = path.join(this.uploadsDir, partitionSubfolder);
     if (!fs.existsSync(targetDir)) {
       fs.mkdirSync(targetDir, { recursive: true });
     }
@@ -152,8 +173,10 @@ export class StorageService {
     const targetFilePath = path.join(targetDir, finalFilename);
     await fs.promises.writeFile(targetFilePath, buffer);
 
+    const relativeUrlPath = `/uploads/${partitionSubfolder.replace(/\\/g, '/')}/${finalFilename}`;
+
     return {
-      publicUrl: `/uploads/${subfolder}/${finalFilename}`,
+      publicUrl: relativeUrlPath,
       filePath: targetFilePath,
       fileName: finalFilename,
       sizeBytes: buffer.length

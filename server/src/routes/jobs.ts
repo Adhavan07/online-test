@@ -7,7 +7,7 @@ export const jobsRouter = Router();
 /**
  * List all job openings with application statistics (Authenticated & Scoped)
  */
-jobsRouter.get('/', authenticateToken, requireRole(['RECRUITER', 'ADMIN', 'TECH_INTERVIEWER']), async (req: AuthenticatedRequest, res) => {
+jobsRouter.get('/', authenticateToken, requireRole(['RECRUITER', 'HR_ADMIN', 'ADMIN', 'TECH_INTERVIEWER']), async (req: AuthenticatedRequest, res) => {
   try {
     const isSuperAdmin = req.user?.role === 'ADMIN' && !req.user?.companyId;
     const where = isSuperAdmin ? {} : { companyId: req.user?.companyId || undefined };
@@ -70,9 +70,9 @@ jobsRouter.get('/', authenticateToken, requireRole(['RECRUITER', 'ADMIN', 'TECH_
 });
 
 /**
- * Create a new Job Opening (RECRUITER / ADMIN)
+ * Create a new Job Opening (RECRUITER / ADMIN / HR_ADMIN)
  */
-jobsRouter.post('/', authenticateToken, requireRole(['RECRUITER', 'ADMIN']), async (req: AuthenticatedRequest, res) => {
+jobsRouter.post('/', authenticateToken, requireRole(['RECRUITER', 'HR_ADMIN', 'ADMIN']), async (req: AuthenticatedRequest, res) => {
   const { title, experienceRange, location, skillsRequired, description, passThreshold, assessmentTemplateId } = req.body;
 
   if (!title || typeof title !== 'string' || title.trim().length < 2) {

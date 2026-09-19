@@ -99,7 +99,10 @@ authRouter.post('/login', loginRateLimiter, async (req, res) => {
         company: user.company ? {
           id: user.company.id,
           name: user.company.name,
+          slug: user.company.slug,
           logoUrl: user.company.logoUrl,
+          brandColor: user.company.brandColor,
+          plan: user.company.plan,
         } : null,
       }
     });
@@ -133,9 +136,58 @@ authRouter.get('/me', authenticateToken, async (req: AuthenticatedRequest, res) 
         company: user.company ? {
           id: user.company.id,
           name: user.company.name,
+          slug: user.company.slug,
           logoUrl: user.company.logoUrl,
+          brandColor: user.company.brandColor,
+          plan: user.company.plan,
         } : null,
       }
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * Switch Active Workspace (SUPER_ADMIN / ADMIN ONLY)
+ * Allows platform administrators to switch their tenant context into any client organization
+ */
+authRouter.post('/switch-workspace', authenticateToken, requireRole(['ADMIN']), async (req: AuthenticatedRequest, res) => {
+  const { targetCompanyId } = req.body;
+
+  try {
+    let company = null;
+    if (targetCompanyId) {
+      company = await prisma.company.findUnique({
+        where: { id: targetCompanyId }
+      });
+      if (!company) {
+        return res.status(404).json({ success: false, error: 'Target workspace organization not found.' });
+      }
+    }
+
+    const tokenPayload = {
+      id: req.user!.id,
+      email: req.user!.email,
+      name: req.user!.name,
+      role: req.user!.role,
+      companyId: company ? company.id : null
+    };
+
+    const secret = getJwtSecret();
+    const token = jwt.sign(tokenPayload, secret, { expiresIn: '8h' });
+
+    res.json({
+      success: true,
+      token,
+      activeWorkspace: company ? {
+        id: company.id,
+        name: company.name,
+        slug: company.slug,
+        brandColor: company.brandColor,
+        logoUrl: company.logoUrl,
+        plan: company.plan
+      } : null
     });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });

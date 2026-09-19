@@ -13,6 +13,7 @@ import { SmtpSettingsModal } from './components/admin/SmtpSettingsModal';
 import { ToastProvider } from './components/common/Toast';
 import { LoginPage } from './components/auth/LoginPage';
 import { getStoredUser, clearStoredSession, UserSession } from './lib/auth';
+import { TenantProvider } from './lib/TenantContext';
 
 export const AppContent: React.FC = () => {
   // Session State
@@ -230,9 +231,11 @@ export const AppContent: React.FC = () => {
 
 export const App: React.FC = () => {
   return (
-    <ToastProvider>
-      <AppContent />
-    </ToastProvider>
+    <TenantProvider>
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
+    </TenantProvider>
   );
 };
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ShieldCheck, Lock, Mail, ArrowRight, AlertCircle, Sparkles, Building2, UserCheck } from 'lucide-react';
 import { setStoredSession, UserSession } from '../../lib/auth';
+import { RegisterTenantModal } from './RegisterTenantModal';
 
 interface LoginPageProps {
   onLoginSuccess: (user: UserSession) => void;
@@ -11,6 +12,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isRegisterOpen, setIsRegisterOpen] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -123,6 +125,24 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           </button>
         </form>
 
+        {/* Self-Service Multi-Tenant Workspace Onboarding Action */}
+        <div className="bg-blue-50/60 border border-blue-200/80 rounded-lg p-3 text-center space-y-1.5">
+          <div className="text-xs font-semibold text-blue-900 flex items-center justify-center space-x-1.5">
+            <Building2 className="w-3.5 h-3.5 text-blue-600" />
+            <span>Need a workspace for your company?</span>
+          </div>
+          <p className="text-[11px] text-blue-700/80">
+            Set up an isolated enterprise tenant with custom branding and question library in 60 seconds.
+          </p>
+          <button
+            type="button"
+            onClick={() => setIsRegisterOpen(true)}
+            className="w-full mt-1 bg-white hover:bg-blue-50 text-blue-700 font-semibold text-xs py-1.5 px-3 rounded border border-blue-300 transition cursor-pointer shadow-2xs"
+          >
+            + Create New Organization Workspace
+          </button>
+        </div>
+
         {/* Quick Demo Fill Buttons for Testing */}
         <div className="pt-2 border-t border-zinc-100 space-y-2">
           <div className="text-[10px] font-mono text-zinc-400 uppercase tracking-wider flex items-center justify-between">
@@ -138,7 +158,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             >
               <div className="font-semibold text-zinc-900 flex items-center space-x-1">
                 <UserCheck className="w-3 h-3 text-blue-600" />
-                <span>Recruiter</span>
+                <span>Acme Recruiter</span>
               </div>
               <span className="text-[10px] text-zinc-400 truncate">recruiter@acme.com</span>
             </button>
@@ -150,7 +170,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             >
               <div className="font-semibold text-zinc-900 flex items-center space-x-1">
                 <Building2 className="w-3 h-3 text-emerald-600" />
-                <span>Admin</span>
+                <span>Acme Admin</span>
               </div>
               <span className="text-[10px] text-zinc-400 truncate">admin@techscreen.com</span>
             </button>
@@ -161,6 +181,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         <p className="text-[11px] text-zinc-400 text-center font-mono">
           Candidate screening links do not require recruiter login.
         </p>
+
+        {/* Register Organization Modal */}
+        <RegisterTenantModal
+          isOpen={isRegisterOpen}
+          onClose={() => setIsRegisterOpen(false)}
+          onSuccess={(user) => onLoginSuccess(user)}
+        />
 
       </div>
       

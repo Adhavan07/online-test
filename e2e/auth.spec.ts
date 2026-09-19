@@ -46,7 +46,7 @@ test.describe('TechScreen Pro — E2E Authentication & Workspace Flow', () => {
     // Verify successful login into recruiter workspace
     await expect(page.locator('text=Sarah Jenkins')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('aside').getByText('RECRUITER', { exact: true })).toBeVisible();
-    await expect(page.locator('aside').getByText('TECHSCREEN')).toBeVisible();
+    await expect(page.locator('aside').getByText(/Acme Cloud Technologies|TECHSCREEN/i)).toBeVisible();
 
     // Verify sidebar navigation items
     await expect(page.getByRole('button', { name: /Dashboard/i })).toBeVisible();
@@ -80,5 +80,46 @@ test.describe('TechScreen Pro — E2E Authentication & Workspace Flow', () => {
 
     // Returned to login gate
     await expect(page.getByRole('button', { name: /Sign In to Workspace/i })).toBeVisible({ timeout: 5000 });
+  });
+
+  test('5. self-service registers a new organization workspace and accesses organization settings', async ({ page }) => {
+    const pageErrors: string[] = [];
+    page.on('pageerror', err => pageErrors.push(err.message));
+
+    const uniqueId = Date.now().toString(36);
+    const companyName = `Stark Industries ${uniqueId}`;
+    const slug = `stark-${uniqueId}`;
+    const email = `tony.${uniqueId}@stark.com`;
+
+    await page.goto('/');
+
+    // Click create new organization workspace
+    await page.getByRole('button', { name: /\+ Create New Organization Workspace/i }).click();
+
+    // Fill registration modal
+    const modal = page.locator('form').filter({ hasText: '1. Organization' });
+    await modal.locator('input[placeholder="e.g. Acme Corporation"]').fill(companyName);
+    await modal.locator('input[placeholder="acme"]').fill(slug);
+    await modal.locator('input[placeholder="Sarah Connor"]').fill('Tony Stark');
+    await modal.locator('input[placeholder="sarah@acme.com"]').fill(email);
+    await modal.locator('input[type="password"]').fill('IronManSecure@2026');
+
+    // Click submit
+    await modal.getByRole('button', { name: /Create Workspace & Launch/i }).click();
+
+    // Verify workspace loaded with Stark branding
+    await expect(page.locator(`text=${companyName}`)).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('aside').getByText('HR_ADMIN', { exact: true })).toBeVisible();
+
+    // Navigate to Admin Console -> Organization Settings
+    await page.getByRole('button', { name: /Admin Console/i }).click();
+    await expect(page.getByRole('button', { name: /Organization Settings/i })).toBeVisible();
+    await page.getByRole('button', { name: /Organization Settings/i }).click();
+
+    // Verify workspace URL and status
+    await expect(page.locator(`text=https://${slug}.techscreen.io`)).toBeVisible();
+    await expect(page.getByText('ACTIVE', { exact: true })).toBeVisible();
+
+    expect(pageErrors).toEqual([]);
   });
 });

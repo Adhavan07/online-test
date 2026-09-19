@@ -19,14 +19,22 @@ model User {
 }
 
 model Company {
-  id        String               @id @default(uuid())
-  name      String
-  logoUrl   String?
-  users     User[]
-  jobs      Job[]
-  templates AssessmentTemplate[]
-  webhooks  WebhookConfig[]
-  createdAt DateTime             @default(now())
+  id           String               @id @default(uuid())
+  name         String
+  slug         String               @unique @default(cuid())
+  domain       String?              @unique
+  status       String               @default("ACTIVE") // ACTIVE, SUSPENDED, TRIAL
+  plan         String               @default("ENTERPRISE") // FREE, STARTER, PRO, ENTERPRISE
+  brandColor   String               @default("#2563eb")
+  settingsJson String?              // JSON string of tenant settings
+  logoUrl      String?
+  users        User[]
+  jobs         Job[]
+  templates    AssessmentTemplate[]
+  webhooks     WebhookConfig[]
+  createdAt    DateTime             @default(now())
+
+  @@index([slug])
 }
 
 model Job {

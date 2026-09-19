@@ -15,9 +15,11 @@ import { interviewsRouter } from './routes/interviews.js';
 import { badgesRouter } from './routes/badges.js';
 import { webhooksRouter } from './routes/webhooks.js';
 import { notificationsRouter } from './routes/notifications.js';
+import { tenantsRouter } from './routes/tenants.js';
 
 import { securityHeaders } from './middleware/securityHeaders.js';
 import { enforceStartupConfig } from './middleware/auth.js';
+import { resolveTenant } from './middleware/tenant.js';
 
 dotenv.config();
 
@@ -44,10 +46,11 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token', 'x-assessment-token'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token', 'x-assessment-token', 'x-tenant-slug', 'x-tenant-id'],
 }));
 
 app.use(express.json({ limit: '10mb' }));
+app.use(resolveTenant);
 
 // NOTE: Public static serving of /uploads is REMOVED to protect candidate PII.
 // Resumes and proctoring snapshots are strictly accessed through authenticated endpoints:
@@ -55,6 +58,7 @@ app.use(express.json({ limit: '10mb' }));
 // GET /api/candidates/:applicationId/snapshots/:filename
 
 // API Routers
+app.use('/api/tenants', tenantsRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/jobs', jobsRouter);
 app.use('/api/templates', templatesRouter);

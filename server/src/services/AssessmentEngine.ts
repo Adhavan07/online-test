@@ -60,6 +60,8 @@ export class AssessmentEngine {
         title: application.job.title,
         experienceRange: application.job.experienceRange,
         companyName: application.job.company.name,
+        companyLogoUrl: application.job.company.logoUrl,
+        companyBrandColor: application.job.company.brandColor || '#2563eb',
         passThreshold: application.job.passThreshold,
       },
       template: template ? {

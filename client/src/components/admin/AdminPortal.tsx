@@ -4,9 +4,10 @@ import {
 } from 'lucide-react';
 import { AiQuestionGeneratorModal } from './AiQuestionGeneratorModal';
 import { EnterpriseWebhooksModal } from '../recruiter/EnterpriseWebhooksModal';
+import { TenantSettingsView } from './TenantSettingsView';
 
 interface AdminPortalProps {
-  initialTab?: 'METRICS' | 'QUESTION_BANK' | 'AUDIT_LOGS' | 'EMAIL_LOGS';
+  initialTab?: 'METRICS' | 'ORGANIZATION' | 'QUESTION_BANK' | 'AUDIT_LOGS' | 'EMAIL_LOGS';
 }
 
 export const AdminPortal: React.FC<AdminPortalProps> = ({ initialTab = 'METRICS' }) => {
@@ -15,7 +16,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ initialTab = 'METRICS'
   const [emailLogs, setEmailLogs] = useState<any[]>([]);
   const [templates, setTemplates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'METRICS' | 'QUESTION_BANK' | 'AUDIT_LOGS' | 'EMAIL_LOGS'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'METRICS' | 'ORGANIZATION' | 'QUESTION_BANK' | 'AUDIT_LOGS' | 'EMAIL_LOGS'>(initialTab);
 
   // Modals state
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
@@ -148,6 +149,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ initialTab = 'METRICS'
           {/* Sub Navigation */}
           <div className="flex items-center space-x-1 bg-zinc-100 p-1 rounded border border-zinc-200">
             {[
+              { id: 'ORGANIZATION', label: 'Organization Settings', icon: Building2 },
               { id: 'METRICS', label: 'Metrics', icon: Database },
               { id: 'QUESTION_BANK', label: 'Question Bank', icon: FileText },
               { id: 'AUDIT_LOGS', label: 'Audit Logs', icon: ShieldCheck },
@@ -168,6 +170,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ initialTab = 'METRICS'
           </div>
         </div>
       </div>
+
+      {/* ORGANIZATION SETTINGS TAB */}
+      {activeTab === 'ORGANIZATION' && (
+        <TenantSettingsView />
+      )}
 
       {/* METRICS TAB */}
       {activeTab === 'METRICS' && stats && (

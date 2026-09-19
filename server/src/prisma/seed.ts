@@ -26,6 +26,10 @@ async function main() {
   const company = await prisma.company.create({
     data: {
       name: 'Acme Cloud Technologies',
+      slug: 'acme-cloud',
+      status: 'ACTIVE',
+      plan: 'ENTERPRISE',
+      brandColor: '#2563eb',
       logoUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=60',
     },
   });
