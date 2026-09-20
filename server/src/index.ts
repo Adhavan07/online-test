@@ -54,11 +54,8 @@ app.use(express.json({ limit: '10mb' }));
 app.use(resolveTenant);
 
 // NOTE: Public static serving of /uploads is REMOVED to protect candidate PII.
-// Resumes and proctoring snapshots are strictly accessed through authenticated endpoints:
-// GET /api/candidates/:applicationId/resume
-// GET /api/candidates/:applicationId/snapshots/:filename
+// Resumes and proctoring snapshots are strictly accessed through authenticated endpoints.
 
-// API Routers
 app.use('/api/tenants', tenantsRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/jobs', jobsRouter);
@@ -75,7 +72,6 @@ app.use('/api/webhooks', webhooksRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/legal', legalRouter);
 
-// Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'UP', service: 'TechScreen Pro Backend API', timestamp: new Date() });
 });
@@ -85,9 +81,10 @@ app.all('/uploads/*', (req, res) => {
   res.status(404).json({ success: false, error: 'Public static file access to /uploads is disabled. Authenticated endpoints must be used.' });
 });
 
-// Serve frontend static build if available
+// Serve frontend static build for traditional Node/Docker deployments.
+// Vercel serves client/dist through its CDN instead of express.static.
 const clientDistDir = path.join(process.cwd(), 'client', 'dist');
-if (fs.existsSync(clientDistDir)) {
+if (process.env.VERCEL !== '1' && fs.existsSync(clientDistDir)) {
   app.use(express.static(clientDistDir));
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/')) {
@@ -109,7 +106,6 @@ app.use((err: any, req: express.Request, res: express.Response, _next: express.N
     return res.status(403).json({ success: false, error: 'CORS policy violation: Origin not allowed.' });
   }
 
-  // Server-side detailed logging (without leaking secrets)
   console.error('[SERVER ERROR]', err.message || err);
 
   const statusCode = err.status || err.statusCode || 500;
@@ -121,7 +117,9 @@ app.use((err: any, req: express.Request, res: express.Response, _next: express.N
   return res.status(statusCode).json({ success: false, error: safeMessage });
 });
 
-if (process.env.NODE_ENV !== 'test') {
+// Traditional Node/Docker server only.
+// Vercel imports the exported Express app as a serverless function and must not open a listener.
+if (process.env.NODE_ENV !== 'test' && process.env.VERCEL !== '1') {
   enforceStartupConfig();
   app.listen(PORT, (err?: any) => {
     if (err) {
@@ -133,3 +131,4 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 export { app };
+export default app;
