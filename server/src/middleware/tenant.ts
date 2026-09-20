@@ -109,6 +109,13 @@ function extractSubdomain(host: string | undefined): string | null {
     return null;
   }
 
+  // Vercel deployment hosts are not tenant subdomains.
+  // A preview URL such as <deployment>.vercel.app must not trigger a
+  // database lookup before public routes (including login) are handled.
+  if (hostname.endsWith('.vercel.app')) {
+    return null;
+  }
+
   const parts = hostname.split('.');
   // 'acme.localhost' -> parts length 2
   if (parts.length === 2 && parts[1] === 'localhost') {
