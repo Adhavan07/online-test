@@ -1,24 +1,41 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
+import { authenticateToken, requireRole, AuthenticatedRequest } from '../middleware/auth.js';
 
 export const analyticsRouter = Router();
 
+// Protect ALL analytics routes with authenticated recruiter/admin RBAC
+analyticsRouter.use(authenticateToken, requireRole(['RECRUITER', 'ADMIN', 'TECH_INTERVIEWER']));
+
 /**
- * Get Executive Hiring Funnel & Platform Analytics
+ * Get Executive Hiring Funnel & Platform Analytics (Scoped to User's Company)
  */
-analyticsRouter.get('/funnel', async (req, res) => {
+analyticsRouter.get('/funnel', async (req: AuthenticatedRequest, res) => {
   try {
-    const totalApplications = await prisma.jobApplication.count();
-    const invitedCount = await prisma.jobApplication.count({ where: { status: 'INVITED' } });
+    const isSuperAdmin = req.user?.role === 'ADMIN' && !req.user?.companyId;
+    const companyFilter = isSuperAdmin ? {} : { job: { companyId: req.user?.companyId || undefined } };
+
+    const totalApplications = await prisma.jobApplication.count({
+      where: companyFilter
+    });
+    const invitedCount = await prisma.jobApplication.count({
+      where: { ...companyFilter, status: 'INVITED' }
+    });
     const completedAttempts = await prisma.assessmentAttempt.findMany({
-      where: { isCompleted: true },
+      where: {
+        isCompleted: true,
+        ...(isSuperAdmin ? {} : { application: { job: { companyId: req.user?.companyId || undefined } } })
+      },
       include: { result: true }
     });
 
     const completedCount = completedAttempts.length;
     const passedCount = completedAttempts.filter(a => a.result?.isPassed).length;
     const hrStageCount = await prisma.jobApplication.count({
-      where: { status: { in: ['HR_INTERVIEW', 'SHORTLISTED'] } }
+      where: {
+        ...companyFilter,
+        status: { in: ['HR_INTERVIEW', 'SHORTLISTED'] }
+      }
     });
 
     // Calculate Average Completion Time
@@ -60,7 +77,7 @@ analyticsRouter.get('/funnel', async (req, res) => {
             skillTotals[secTitle].totalScore += breakdown[secTitle].score || 0;
             skillTotals[secTitle].totalMax += breakdown[secTitle].max || 0;
           });
-        } catch (e) {
+        } catch {
           // Ignore JSON parse errors if any
         }
       }
@@ -96,12 +113,13 @@ analyticsRouter.get('/funnel', async (req, res) => {
 });
 
 /**
- * Generate AI Candidate Performance Summary & Risk Insights
+ * Generate AI Candidate Performance Summary & Risk Insights (Scoped & Authorized)
  */
-analyticsRouter.get('/candidates/:applicationId/ai-insights', async (req, res) => {
+analyticsRouter.get('/candidates/:applicationId/ai-insights', async (req: AuthenticatedRequest, res) => {
   const { applicationId } = req.params;
 
   try {
+    const isSuperAdmin = req.user?.role === 'ADMIN' && !req.user?.companyId;
     const application = await prisma.jobApplication.findUnique({
       where: { id: applicationId },
       include: {
@@ -121,6 +139,10 @@ analyticsRouter.get('/candidates/:applicationId/ai-insights', async (req, res) =
 
     if (!application) {
       return res.status(404).json({ success: false, error: 'Application not found' });
+    }
+
+    if (!isSuperAdmin && req.user?.companyId && application.job.companyId !== req.user.companyId) {
+      return res.status(403).json({ success: false, error: 'Forbidden: You do not have access to this application.' });
     }
 
     const latestAttempt = application.attempts[0];
@@ -147,7 +169,7 @@ analyticsRouter.get('/candidates/:applicationId/ai-insights', async (req, res) =
           max: parsed[title].max,
           percentage: parsed[title].max > 0 ? Math.round((parsed[title].score / parsed[title].max) * 100) : 0,
         }));
-      } catch (e) {}
+      } catch {}
     }
 
     // Determine strengths & weaknesses

@@ -1,5 +1,11 @@
+import fs from 'fs';
 import { prisma } from '../lib/prisma.js';
+import { ResumeMatchingService } from './ResumeMatchingService.js';
 import { EmailService } from './EmailService.js';
+import { NotificationService } from './NotificationService.js';
+import { CodeExecutionService } from './CodeExecutionService.js';
+import { storageService } from './StorageService.js';
+import { generateSecureOtp, hashOtp, verifyOtpCode } from '../lib/crypto.js';
 
 export class AssessmentEngine {
   /**
@@ -25,27 +31,21 @@ export class AssessmentEngine {
               }
             }
           }
-        },
-        attempts: {
-          orderBy: { startedAt: 'desc' },
-          take: 1,
-          include: {
-            result: true
-          }
         }
       }
     });
 
-    if (!application) {
-      throw new Error('Invalid or expired assessment link.');
-    }
+    if (!application) throw new Error('Invalid assessment access token');
 
-    if (new Date() > application.tokenExpiresAt) {
-      throw new Error('Assessment link has expired.');
-    }
+    const isExpired = new Date() > application.tokenExpiresAt;
+    if (isExpired) throw new Error('Assessment invitation link has expired');
 
     const template = application.job.assessmentTemplate;
-    const latestAttempt = application.attempts[0] || null;
+    const latestAttempt = await prisma.assessmentAttempt.findFirst({
+      where: { applicationId: application.id },
+      orderBy: { startedAt: 'desc' },
+      include: { result: true }
+    });
 
     return {
       applicationId: application.id,
@@ -60,6 +60,8 @@ export class AssessmentEngine {
         title: application.job.title,
         experienceRange: application.job.experienceRange,
         companyName: application.job.company.name,
+        companyLogoUrl: application.job.company.logoUrl,
+        companyBrandColor: application.job.company.brandColor || '#2563eb',
         passThreshold: application.job.passThreshold,
       },
       template: template ? {
@@ -76,6 +78,7 @@ export class AssessmentEngine {
       } : null,
       status: application.status,
       isOtpVerified: application.isOtpVerified,
+      createdAt: application.createdAt,
       latestAttempt: latestAttempt ? {
         id: latestAttempt.id,
         isCompleted: latestAttempt.isCompleted,
@@ -88,45 +91,115 @@ export class AssessmentEngine {
    * Send 6-digit OTP to Candidate
    */
   static async sendOtp(token: string) {
+    if (!token) throw new Error('Verification token is required');
+
     const application = await prisma.jobApplication.findUnique({
       where: { token },
-      include: { candidate: true }
+      include: { candidate: true, job: true }
     });
 
     if (!application) throw new Error('Application not found');
 
-    // Generate fixed 6-digit code for fast testing / simulation
-    const otpCode = '123456';
+    // Enforce 30-second resend cooldown
+    const COOLDOWN_SECONDS = 30;
+    if (application.otpLastSentAt) {
+      const elapsedMs = Date.now() - application.otpLastSentAt.getTime();
+      if (elapsedMs < COOLDOWN_SECONDS * 1000) {
+        const waitSeconds = Math.ceil((COOLDOWN_SECONDS * 1000 - elapsedMs) / 1000);
+        throw new Error(`Please wait ${waitSeconds}s before requesting another verification code.`);
+      }
+    }
+
+    // Cryptographically secure 6-digit numeric OTP
+    const otp = generateSecureOtp();
+    const otpCodeHash = hashOtp(otp);
+    const otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes validity
+
     await prisma.jobApplication.update({
       where: { id: application.id },
-      data: { otpCode }
+      data: {
+        otpCode: null,
+        otpCodeHash,
+        otpExpiresAt,
+        otpAttemptsCount: 0,
+        otpLastSentAt: new Date(),
+      }
     });
 
-    await EmailService.sendEmail({
-      recipientEmail: application.candidate.email,
-      subject: 'Verification Code for Technical Assessment',
-      type: 'OTP_VERIFICATION',
-      content: `Your 6-digit verification code is: ${otpCode}. Enter this code on the assessment portal to begin.`,
-    });
+    const testUrl = `${process.env.APP_URL || 'http://localhost:3000'}/assessment/${token}`;
+    await EmailService.sendOtp(
+      application.candidate.name,
+      application.candidate.email,
+      application.job?.title || 'Technical Assessment',
+      otp,
+      testUrl
+    );
 
-    return { success: true, message: 'OTP sent to candidate email' };
+    // Development console log for manual QA without mailbox access
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[AUTH/OTP] Generated OTP for candidate ${application.candidate.email}: [${otp}]`);
+    }
+
+    return { 
+      success: true, 
+      message: `OTP sent to ${application.candidate.email}`
+    };
   }
 
   /**
    * Verify Candidate OTP
    */
   static async verifyOtp(token: string, otpCode: string) {
+    if (!token || !otpCode) {
+      throw new Error('Verification token and 6-digit code are required.');
+    }
+
     const application = await prisma.jobApplication.findUnique({ where: { token } });
     if (!application) throw new Error('Application not found');
 
-    // Allow '123456' as master bypass OTP for smooth demonstration
-    if (otpCode !== '123456' && application.otpCode !== otpCode) {
-      throw new Error('Invalid verification code. Please try again.');
+    if (application.isOtpVerified) {
+      return { success: true, isOtpVerified: true };
     }
 
+    const MAX_ATTEMPTS = 5;
+    if (application.otpAttemptsCount >= MAX_ATTEMPTS) {
+      throw new Error('Too many failed attempts. Verification passcode has been locked. Please request a new code.');
+    }
+
+    if (!application.otpCodeHash || !application.otpExpiresAt) {
+      throw new Error('No active verification code found. Please request a new code.');
+    }
+
+    if (new Date() > application.otpExpiresAt) {
+      throw new Error('Verification code has expired. Please request a new code.');
+    }
+
+    const isValid = verifyOtpCode(otpCode.trim(), application.otpCodeHash);
+
+    if (!isValid) {
+      const newAttempts = application.otpAttemptsCount + 1;
+      await prisma.jobApplication.update({
+        where: { id: application.id },
+        data: { otpAttemptsCount: newAttempts }
+      });
+
+      const remaining = MAX_ATTEMPTS - newAttempts;
+      if (remaining <= 0) {
+        throw new Error('Too many failed attempts. Verification code locked. Please request a new code.');
+      }
+      throw new Error(`Invalid verification code. ${remaining} attempt(s) remaining.`);
+    }
+
+    // Success: invalidate OTP (single-use) and mark application as verified
     await prisma.jobApplication.update({
       where: { id: application.id },
-      data: { isOtpVerified: true }
+      data: {
+        isOtpVerified: true,
+        otpCode: null,
+        otpCodeHash: null,
+        otpExpiresAt: null,
+        otpAttemptsCount: 0,
+      }
     });
 
     return { success: true, isOtpVerified: true };
@@ -139,6 +212,7 @@ export class AssessmentEngine {
     const application = await prisma.jobApplication.findUnique({
       where: { token },
       include: {
+        candidate: true,
         job: {
           include: {
             assessmentTemplate: {
@@ -190,6 +264,10 @@ export class AssessmentEngine {
         currentQuestionIndex: 0,
         questionOrderJson: JSON.stringify(allQuestions),
         isCompleted: false,
+      },
+      include: {
+        answers: true,
+        proctoringLogs: true,
       }
     });
 
@@ -198,66 +276,49 @@ export class AssessmentEngine {
       data: { status: 'IN_PROGRESS' }
     });
 
+    // Dispatch in-app notification when assessment is started
+    await NotificationService.createNotification({
+      type: 'TEST_STARTED',
+      title: 'Assessment Started',
+      message: `${application.candidate.name} has begun technical assessment for ${application.job.title}`,
+      candidateName: application.candidate.name,
+      candidateId: application.candidate.id,
+      jobTitle: application.job.title,
+      link: `/assessment/${token}`,
+    });
+
     return { attemptId: attempt.id, status: 'STARTED' };
   }
 
   /**
-   * Helper: Safely execute candidate JavaScript code against test cases
+   * Safely execute candidate code in isolated sub-process with strict timeout and sandbox limits
    */
-  static executeJavaScriptCode(code: string, testCasesJson?: string | null) {
-    if (!testCasesJson) return { passCount: 0, totalCases: 0, percentage: 100, testResults: [] };
-    
-    let testCases: Array<{ input: string; expectedOutput: string; description?: string }> = [];
-    try {
-      testCases = JSON.parse(testCasesJson);
-    } catch {
-      return { passCount: 0, totalCases: 0, percentage: 0, testResults: [] };
-    }
+  static async executeCode(
+    code: string,
+    testCasesJson?: string | null,
+    language?: 'javascript' | 'typescript' | 'python',
+    maskHiddenDetails: boolean = false
+  ) {
+    const detectedLang = language || (code.includes('def ') ? 'python' : 'javascript');
+    return CodeExecutionService.executeCode(code, testCasesJson, detectedLang, maskHiddenDetails);
+  }
 
-    let passCount = 0;
-    const testResults = testCases.map((tc, idx) => {
-      let actualOutputStr = '';
-      let passed = false;
-      try {
-        const parsedInput = JSON.parse(tc.input);
-        // Wrap code execution inside isolated scope function
-        const runner = new Function('input', `
-          ${code}
-          if (typeof solution === 'function') {
-            return solution(input);
-          }
-          throw new Error("Function 'solution' is not defined.");
-        `);
-        const result = runner(parsedInput);
-        actualOutputStr = typeof result === 'object' ? JSON.stringify(result) : String(result);
-        
-        // Compare output (trimmed string comparison or JSON equal)
-        const expectedTrimmed = tc.expectedOutput.trim();
-        actualOutputStr = actualOutputStr.trim();
-        passed = actualOutputStr === expectedTrimmed || actualOutputStr === tc.expectedOutput;
-      } catch (err: any) {
-        actualOutputStr = `Runtime Error: ${err.message || String(err)}`;
-        passed = false;
-      }
-
-      if (passed) passCount++;
-      return {
-        testCaseIndex: idx + 1,
-        description: tc.description || `Test Case #${idx + 1}`,
-        passed,
-        actual: actualOutputStr,
-        expected: tc.expectedOutput,
-      };
-    });
-
-    const percentage = testCases.length > 0 ? Math.round((passCount / testCases.length) * 100) : 100;
-    return { passCount, totalCases: testCases.length, percentage, testResults };
+  /**
+   * Helper alias for backward compatibility
+   */
+  static async executeJavaScriptCode(code: string, testCasesJson?: string | null) {
+    return this.executeCode(code, testCasesJson, 'javascript', false);
   }
 
   /**
    * Run Candidate Code preview against test cases
    */
-  static async runCodeTest(questionId?: string, code?: string, customTestCasesJson?: string) {
+  static async runCodeTest(
+    questionId?: string,
+    code?: string,
+    customTestCasesJson?: string,
+    language?: 'javascript' | 'typescript' | 'python'
+  ) {
     let testCasesJson = customTestCasesJson;
     if (questionId) {
       const question = await prisma.question.findUnique({ where: { id: questionId } });
@@ -265,13 +326,13 @@ export class AssessmentEngine {
         testCasesJson = question.testCasesJson;
       }
     }
-    return this.executeJavaScriptCode(code || '', testCasesJson);
+    return this.executeCode(code || '', testCasesJson, language, true);
   }
 
   /**
    * Fetch current question details for candidate (Timer = 60s per question)
    */
-  static async getQuestionAtIndex(attemptId: string, index?: number) {
+  static async getQuestionAtIndex(attemptId: string, index?: number): Promise<any> {
     const attempt = await prisma.assessmentAttempt.findUnique({
       where: { id: attemptId },
       include: {
@@ -316,18 +377,59 @@ export class AssessmentEngine {
 
     if (!question) throw new Error('Question not found');
 
+    // Server-Controlled 60-Second Question Timer (Anti-Tamper & Refresh-Safe)
+    const now = new Date();
+    let activeStartedAt = attempt.activeQuestionStartedAt;
+
+    if (!activeStartedAt || attempt.currentQuestionIndex !== targetIndex) {
+      activeStartedAt = now;
+      await prisma.assessmentAttempt.update({
+        where: { id: attemptId },
+        data: {
+          currentQuestionIndex: targetIndex,
+          activeQuestionStartedAt: now,
+        }
+      });
+    }
+
+    const allowedDuration = question.type === 'CODING' ? 180 : 60;
+    const elapsedSeconds = Math.floor((now.getTime() - new Date(activeStartedAt).getTime()) / 1000);
+
+    // Auto-advance if question window expired before submission
+    if (elapsedSeconds >= allowedDuration + 5) {
+      const nextIndex = targetIndex + 1;
+      await prisma.assessmentAttempt.update({
+        where: { id: attemptId },
+        data: {
+          currentQuestionIndex: nextIndex,
+          activeQuestionStartedAt: null,
+        }
+      });
+      if (nextIndex >= questionIds.length) {
+        await this.evaluateAssessment(attemptId);
+        return { isCompleted: true };
+      }
+      return this.getQuestionAtIndex(attemptId, nextIndex);
+    }
+
+    const remainingSeconds = Math.max(0, allowedDuration - elapsedSeconds);
+
     // Check if already answered
     const existingAnswer = attempt.answers.find(a => a.questionId === questionId);
 
-    // Format public test cases preview if question type is CODING
+    // Format public test cases preview if question type is CODING (strictly excluding hidden test cases)
     let sampleTestCases: Array<{ description: string; input: string }> = [];
     if (question.type === 'CODING' && question.testCasesJson) {
       try {
         const fullCases = JSON.parse(question.testCasesJson);
-        sampleTestCases = fullCases.map((tc: any, i: number) => ({
-          description: tc.description || `Test Case #${i + 1}`,
-          input: tc.input,
-        }));
+        if (Array.isArray(fullCases)) {
+          // Strictly exclude hidden/benchmark test cases
+          const visibleCases = fullCases.filter((tc: any) => !tc.isHidden);
+          sampleTestCases = visibleCases.map((tc: any, i: number) => ({
+            description: tc.description || `Sample Case #${i + 1}`,
+            input: tc.input,
+          }));
+        }
       } catch {}
     }
 
@@ -335,7 +437,9 @@ export class AssessmentEngine {
       isCompleted: false,
       currentIndex: targetIndex,
       totalQuestions: questionIds.length,
-      timePerQuestionSeconds: question.type === 'CODING' ? 180 : 60, // 3 mins for coding questions!
+      timePerQuestionSeconds: allowedDuration,
+      remainingSeconds,
+      activeQuestionStartedAt: activeStartedAt,
       question: {
         id: question.id,
         prompt: question.prompt,
@@ -344,7 +448,7 @@ export class AssessmentEngine {
         sectionTitle: question.section.title,
         codeTemplate: question.codeTemplate,
         sampleTestCases,
-        options: question.options.sort(() => Math.random() - 0.5),
+        options: question.options.map((o: any) => ({ id: o.id, text: o.text })).sort(() => Math.random() - 0.5),
       },
       previousAnswer: existingAnswer ? JSON.parse(existingAnswer.selectedOptionIdsJson) : [],
       previousCodeAnswer: existingAnswer?.codeAnswer || question.codeTemplate || '',
@@ -372,6 +476,28 @@ export class AssessmentEngine {
 
     const questionIds: string[] = JSON.parse(attempt.questionOrderJson);
     const currentIndex = questionIds.indexOf(questionId);
+
+    const question = await prisma.question.findUnique({ where: { id: questionId } });
+    if (!question) throw new Error('Question not found');
+
+    const allowedDuration = question.type === 'CODING' ? 180 : 60;
+    const GRACE_PERIOD_SECONDS = 10;
+
+    // Enforce question timer limits (Reject late answers that exceeded timer + grace window)
+    if (attempt.activeQuestionStartedAt && attempt.currentQuestionIndex === currentIndex) {
+      const elapsedSeconds = Math.floor((Date.now() - new Date(attempt.activeQuestionStartedAt).getTime()) / 1000);
+      if (elapsedSeconds > (allowedDuration + GRACE_PERIOD_SECONDS)) {
+        const nextIndex = (currentIndex >= 0 ? currentIndex : attempt.currentQuestionIndex) + 1;
+        await prisma.assessmentAttempt.update({
+          where: { id: attemptId },
+          data: { currentQuestionIndex: nextIndex, activeQuestionStartedAt: null }
+        });
+        if (nextIndex >= questionIds.length) {
+          return await this.evaluateAssessment(attemptId);
+        }
+        throw new Error('Question time limit expired. The question has timed out.');
+      }
+    }
 
     // Record or update candidate answer
     const existing = await prisma.candidateAnswer.findFirst({
@@ -407,13 +533,13 @@ export class AssessmentEngine {
       // Last question submitted -> execute server evaluation immediately
       await prisma.assessmentAttempt.update({
         where: { id: attemptId },
-        data: { currentQuestionIndex: nextIndex }
+        data: { currentQuestionIndex: nextIndex, activeQuestionStartedAt: null }
       });
       return await this.evaluateAssessment(attemptId);
     } else {
       await prisma.assessmentAttempt.update({
         where: { id: attemptId },
-        data: { currentQuestionIndex: nextIndex }
+        data: { currentQuestionIndex: nextIndex, activeQuestionStartedAt: null }
       });
       return { isCompleted: false, nextIndex };
     }
@@ -473,7 +599,12 @@ export class AssessmentEngine {
         sectionScores[sectionName].max += itemMaxScore;
 
         if (candAnswer && candAnswer.codeAnswer) {
-          const evalRes = this.executeJavaScriptCode(candAnswer.codeAnswer, q.testCasesJson);
+          const evalRes = await this.executeCode(
+            candAnswer.codeAnswer,
+            q.testCasesJson,
+            candAnswer.codeAnswer.includes('def ') ? 'python' : 'javascript',
+            false
+          );
           const earned = Math.round((evalRes.percentage / 100) * itemMaxScore);
           codingScore += earned;
           sectionScores[sectionName].score += earned;
@@ -508,28 +639,130 @@ export class AssessmentEngine {
     const passThreshold = attempt.application.job.passThreshold;
     const isPassed = percentage >= passThreshold;
 
-    // Calculate Integrity Score based on Proctoring Logs
-    let integrityScore = 100;
+    // Calculate Weighted Proctoring Risk Score (Section 19 of Master Spec)
+    let rawRiskScore = 0;
     let tabSwitches = 0;
     let fullscreenExits = 0;
+    let screenShareStops = 0;
+    let cameraDisconnections = 0;
+    const flagReasons: string[] = [];
 
     for (const log of attempt.proctoringLogs) {
-      if (log.eventType === 'FOCUS_LOST') {
-        tabSwitches++;
-        integrityScore -= 5;
-      } else if (log.eventType === 'FULLSCREEN_EXIT') {
-        fullscreenExits++;
-        integrityScore -= 10;
-      } else if (log.eventType === 'COPY_PASTE') {
-        integrityScore -= 10;
-      } else if (log.eventType === 'SUSPICIOUS_BEHAVIOR') {
-        integrityScore -= 15;
+      switch (log.eventType) {
+        case 'FOCUS_LOST':
+          tabSwitches++;
+          rawRiskScore += 10;
+          break;
+        case 'WINDOW_BLUR':
+          rawRiskScore += 5;
+          break;
+        case 'FULLSCREEN_EXIT':
+          fullscreenExits++;
+          rawRiskScore += 10;
+          break;
+        case 'SCREEN_SHARE_STOPPED':
+          screenShareStops++;
+          rawRiskScore += 30;
+          break;
+        case 'CAMERA_DISABLED':
+          cameraDisconnections++;
+          rawRiskScore += 20;
+          break;
+        case 'MIC_DISABLED':
+          rawRiskScore += 10;
+          break;
+        case 'COPY_PASTE':
+          rawRiskScore += 15;
+          break;
+        case 'RIGHT_CLICK':
+          rawRiskScore += 5;
+          break;
+        case 'SUSPICIOUS_BEHAVIOR':
+          rawRiskScore += 15;
+          break;
+        case 'WEBCAM_SNAPSHOT':
+          // Benign proctoring snapshot, no penalty
+          break;
+        default:
+          rawRiskScore += 5;
+          break;
       }
     }
 
-    integrityScore = Math.max(0, Math.min(100, integrityScore));
+    if (tabSwitches > 0) flagReasons.push(`${tabSwitches} tab switch(es) detected`);
+    if (fullscreenExits > 0) flagReasons.push(`${fullscreenExits} fullscreen exit violation(s)`);
+    if (screenShareStops > 0) flagReasons.push(`Screen sharing was stopped ${screenShareStops} time(s)`);
+    if (cameraDisconnections > 0) flagReasons.push(`Camera was disconnected ${cameraDisconnections} time(s)`);
 
-    // Save Result
+    const proctoringRiskScore = Math.min(100, Math.max(0, rawRiskScore));
+    const integrityScore = Math.max(0, 100 - proctoringRiskScore);
+
+    let proctoringRiskLevel: 'LOW' | 'MEDIUM' | 'HIGH' = 'LOW';
+    if (proctoringRiskScore >= 61) {
+      proctoringRiskLevel = 'HIGH';
+    } else if (proctoringRiskScore >= 31) {
+      proctoringRiskLevel = 'MEDIUM';
+    }
+
+    // Evaluate Resume Matching & Composite Ranking (Section 29 & 30)
+    let jobSkillsRequired: string[] = [];
+    try {
+      jobSkillsRequired = JSON.parse(attempt.application.job.skillsRequired || '[]');
+    } catch {
+      jobSkillsRequired = ['Git', 'Linux', 'Docker', 'Kubernetes', 'CI/CD'];
+    }
+
+    // Authoritative Resume Content Resolution:
+    // 1. Use application.resumeParsedText if available.
+    // 2. Otherwise parse on-demand from disk if resumeUrl exists.
+    // 3. NEVER use candidate name + filename as fake resume text!
+    let authoritativeResumeText = attempt.application.resumeParsedText || '';
+    if (!authoritativeResumeText) {
+      const resumeUrl = attempt.application.resumeUrl || attempt.application.candidate.resumeUrl;
+      if (resumeUrl) {
+        const fullPath = storageService.resolveLocalPath(resumeUrl);
+        if (fs.existsSync(fullPath)) {
+          authoritativeResumeText = await ResumeMatchingService.extractTextFromPdfFile(fullPath);
+          if (authoritativeResumeText) {
+            await prisma.jobApplication.update({
+              where: { id: attempt.application.id },
+              data: { resumeParsedText: authoritativeResumeText }
+            }).catch(() => {});
+          }
+        }
+      }
+    }
+
+    const resumeMatch = ResumeMatchingService.evaluateResumeMatch(
+      authoritativeResumeText,
+      jobSkillsRequired
+    );
+
+    // Initial Status Determination:
+    // If score >= passThreshold:
+    //   - If High Risk -> MANUAL_REVIEW
+    //   - Else -> PASSED
+    // Else -> FAILED
+    let newStatus: string = 'FAILED';
+    if (isPassed) {
+      if (proctoringRiskLevel === 'HIGH' || proctoringRiskScore >= 60) {
+        newStatus = 'MANUAL_REVIEW';
+      } else {
+        newStatus = 'PASSED';
+      }
+    } else {
+      newStatus = 'FAILED';
+    }
+
+    const ranking = ResumeMatchingService.calculateCandidateRanking({
+      technicalScore: percentage,
+      resumeMatchScore: resumeMatch.matchScore,
+      proctoringRiskScore,
+      passThreshold,
+      currentStatus: newStatus,
+    });
+
+    // Save Assessment Result
     const result = await prisma.assessmentResult.upsert({
       where: { attemptId },
       create: {
@@ -538,6 +771,10 @@ export class AssessmentEngine {
         maxScore,
         percentage,
         integrityScore,
+        proctoringRiskScore,
+        proctoringRiskLevel,
+        rankingScore: ranking.rankingScore,
+        recommendation: ranking.recommendation,
         codingScore,
         codingMaxScore,
         sectionScoresJson: JSON.stringify(sectionScores),
@@ -548,6 +785,10 @@ export class AssessmentEngine {
         maxScore,
         percentage,
         integrityScore,
+        proctoringRiskScore,
+        proctoringRiskLevel,
+        rankingScore: ranking.rankingScore,
+        recommendation: ranking.recommendation,
         codingScore,
         codingMaxScore,
         sectionScoresJson: JSON.stringify(sectionScores),
@@ -556,34 +797,62 @@ export class AssessmentEngine {
       }
     });
 
-    // Mark attempt completed & update Application Status
-    const newStatus = isPassed ? 'PASSED' : 'FAILED';
+    // Mark attempt completed & update Application Status & Ranking
     await prisma.assessmentAttempt.update({
       where: { id: attemptId },
       data: {
         isCompleted: true,
         submittedAt: new Date(),
         integrityScore,
+        proctoringRiskScore,
+        proctoringRiskLevel,
         tabSwitchCount: tabSwitches,
         fullscreenViolationCount: fullscreenExits,
+        screenShareStopCount: screenShareStops,
+        cameraDisconnectCount: cameraDisconnections,
+        activeQuestionStartedAt: null,
       }
     });
 
     await prisma.jobApplication.update({
       where: { id: attempt.applicationId },
-      data: { status: newStatus }
+      data: {
+        status: newStatus,
+        resumeMatchScore: resumeMatch.matchScore,
+        resumeParsedSkills: JSON.stringify(resumeMatch.matchedSkills),
+        rankingScore: ranking.rankingScore,
+        recommendation: ranking.recommendation,
+      }
     });
 
-    // Audit log & Email alert if candidate passed
+    // Audit log & Notifications
     await prisma.auditLog.create({
       data: {
         action: 'ASSESSMENT_EVALUATED',
         entity: 'JobApplication',
-        details: `Candidate ${attempt.application.candidate.name} scored ${percentage}% (${newStatus}, Integrity: ${integrityScore}%) on job ${attempt.application.job.title}.`,
+        details: `Candidate ${attempt.application.candidate.name} evaluated: Score ${percentage}%, Status ${newStatus}, Risk ${proctoringRiskScore}/100 (${proctoringRiskLevel}), Recommendation: ${ranking.recommendationLabel}.`,
       }
     });
 
-    if (isPassed) {
+    if (newStatus === 'MANUAL_REVIEW') {
+      await EmailService.sendManualReviewAlert(
+        'recruiter@acme.com',
+        attempt.application.candidate.name,
+        attempt.application.job.title,
+        percentage,
+        proctoringRiskScore,
+        proctoringRiskLevel,
+        flagReasons
+      );
+      await NotificationService.createNotification({
+        type: 'MANUAL_REVIEW',
+        title: '🚨 Manual Review Flagged',
+        message: `${attempt.application.candidate.name} scored ${percentage}% on ${attempt.application.job.title} but triggered High Proctoring Risk (${proctoringRiskScore}/100)`,
+        candidateName: attempt.application.candidate.name,
+        candidateId: attempt.application.candidate.id,
+        jobTitle: attempt.application.job.title,
+      });
+    } else if (newStatus === 'PASSED') {
       await EmailService.sendHrPassNotification(
         'recruiter@acme.com',
         attempt.application.candidate.name,
@@ -591,6 +860,23 @@ export class AssessmentEngine {
         percentage,
         passThreshold
       );
+      await NotificationService.createNotification({
+        type: 'TEST_PASSED',
+        title: '✅ Candidate Passed Screening',
+        message: `${attempt.application.candidate.name} passed ${attempt.application.job.title} with score ${percentage}% (Shortlisted)`,
+        candidateName: attempt.application.candidate.name,
+        candidateId: attempt.application.candidate.id,
+        jobTitle: attempt.application.job.title,
+      });
+    } else {
+      await NotificationService.createNotification({
+        type: 'TEST_FAILED',
+        title: '❌ Assessment Failed',
+        message: `${attempt.application.candidate.name} completed ${attempt.application.job.title} with score ${percentage}% (Below pass threshold ${passThreshold}%)`,
+        candidateName: attempt.application.candidate.name,
+        candidateId: attempt.application.candidate.id,
+        jobTitle: attempt.application.job.title,
+      });
     }
 
     return {
@@ -600,10 +886,19 @@ export class AssessmentEngine {
         maxScore,
         percentage,
         integrityScore,
+        proctoringRiskScore,
+        proctoringRiskLevel,
+        rankingScore: ranking.rankingScore,
+        recommendation: ranking.recommendation,
+        recommendationLabel: ranking.recommendationLabel,
+        resumeMatchScore: resumeMatch.matchScore,
+        matchedSkills: resumeMatch.matchedSkills,
+        missingSkills: resumeMatch.missingSkills,
         codingScore,
         codingMaxScore,
         isPassed,
         sectionScores,
+        status: newStatus,
       }
     };
   }

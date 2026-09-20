@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { 
-  BarChart3, TrendingUp, Users, CheckCircle2, AlertTriangle, 
-  Clock, ShieldAlert, Award, ArrowUpRight, RefreshCw, Layers, PieChart
+  BarChart3, TrendingUp, CheckCircle2, AlertTriangle, 
+  Clock, ShieldAlert, Award, RefreshCw, Layers
 } from 'lucide-react';
 
 interface AnalyticsData {
@@ -55,10 +55,10 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ jobs = [
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px] bg-slate-900/60 rounded-2xl border border-slate-800 p-8">
-        <div className="text-center space-y-3">
-          <RefreshCw className="h-8 w-8 text-blue-500 animate-spin mx-auto" />
-          <p className="text-sm font-medium text-slate-400">Aggregating Hiring Funnel & Skill Analytics...</p>
+      <div className="flex items-center justify-center min-h-[300px] bg-white rounded border border-zinc-200 p-8 select-none">
+        <div className="text-center space-y-2">
+          <RefreshCw className="h-6 w-6 text-zinc-400 animate-spin mx-auto" />
+          <p className="text-xs font-mono text-zinc-500">Aggregating hiring funnel & proctoring analytics...</p>
         </div>
       </div>
     );
@@ -66,12 +66,12 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ jobs = [
 
   if (error || !data) {
     return (
-      <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-6 text-center text-red-400">
-        <AlertTriangle className="h-8 w-8 mx-auto mb-2" />
-        <p className="font-semibold">{error || 'Unable to display analytics'}</p>
+      <div className="bg-red-50 border border-red-200 rounded p-6 text-center text-red-800 text-xs font-medium select-none">
+        <AlertTriangle className="h-6 w-6 mx-auto mb-2 text-red-600" />
+        <p>{error || 'Unable to display analytics'}</p>
         <button 
           onClick={fetchAnalytics}
-          className="mt-3 px-4 py-2 bg-red-600/20 hover:bg-red-600/40 text-white text-xs font-semibold rounded-lg border border-red-500/30"
+          className="mt-3 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded font-medium"
         >
           Retry
         </button>
@@ -84,114 +84,90 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ jobs = [
     ? Math.round((metrics.completedCount / metrics.totalApplications) * 100) 
     : 0;
 
-  // Funnel steps
   const funnelStages = [
-    { label: 'Applications', count: metrics.totalApplications, pct: 100, color: 'bg-blue-500' },
-    { label: 'Invited / Dispatched', count: metrics.invitedCount, pct: metrics.totalApplications ? Math.round((metrics.invitedCount / metrics.totalApplications) * 100) : 0, color: 'bg-cyan-500' },
-    { label: 'Completed Test', count: metrics.completedCount, pct: metrics.totalApplications ? Math.round((metrics.completedCount / metrics.totalApplications) * 100) : 0, color: 'bg-indigo-500' },
-    { label: 'Passed Cutoff', count: metrics.passedCount, pct: metrics.completedCount ? Math.round((metrics.passedCount / metrics.completedCount) * 100) : 0, color: 'bg-emerald-500' },
-    { label: 'Shortlisted / HR', count: metrics.hrStageCount, pct: metrics.passedCount ? Math.round((metrics.hrStageCount / metrics.passedCount) * 100) : 0, color: 'bg-purple-500' },
+    { label: 'Applications Received', count: metrics.totalApplications, pct: 100 },
+    { label: 'Invited / Dispatched', count: metrics.invitedCount, pct: metrics.totalApplications ? Math.round((metrics.invitedCount / metrics.totalApplications) * 100) : 0 },
+    { label: 'Completed Test', count: metrics.completedCount, pct: metrics.totalApplications ? Math.round((metrics.completedCount / metrics.totalApplications) * 100) : 0 },
+    { label: 'Passed Cutoff', count: metrics.passedCount, pct: metrics.completedCount ? Math.round((metrics.passedCount / metrics.completedCount) * 100) : 0 },
+    { label: 'Shortlisted / HR Stage', count: metrics.hrStageCount, pct: metrics.passedCount ? Math.round((metrics.hrStageCount / metrics.passedCount) * 100) : 0 },
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 select-none">
       
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/60 p-6 rounded-2xl border border-slate-800">
+      {/* Header Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-zinc-200">
         <div>
-          <h2 className="text-xl font-extrabold text-white flex items-center space-x-2">
-            <BarChart3 className="h-5 w-5 text-blue-400" />
-            <span>Executive Hiring Intelligence Dashboard</span>
+          <div className="text-xs font-mono text-zinc-500 uppercase tracking-wider mb-0.5">
+            Insights &bull; Executive Analytics
+          </div>
+          <h2 className="text-xl font-bold text-zinc-900 tracking-tight">
+            Hiring Funnel & Skill Analytics
           </h2>
-          <p className="text-xs text-slate-400 mt-1">Real-time candidate funnel efficiency, skill mastery radar & proctoring integrity metrics</p>
+          <p className="text-xs text-zinc-600 mt-0.5">
+            Real-time candidate conversion efficiency, skill distribution & integrity ratings.
+          </p>
         </div>
 
         <button
           onClick={fetchAnalytics}
-          className="flex items-center space-x-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold px-4 py-2.5 rounded-xl border border-slate-700 transition self-start sm:self-auto"
+          className="flex items-center space-x-1.5 bg-white hover:bg-zinc-50 text-zinc-700 text-xs font-medium px-3 py-1.5 rounded border border-zinc-200 transition"
         >
-          <RefreshCw className="h-3.5 w-3.5" />
-          <span>Refresh Data</span>
+          <RefreshCw className="h-3.5 w-3.5 text-zinc-500" />
+          <span>Refresh Analytics</span>
         </button>
       </div>
 
-      {/* KPI Cards Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 relative overflow-hidden">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Completion Rate</span>
-            <TrendingUp className="h-4 w-4 text-cyan-400" />
-          </div>
-          <div className="text-3xl font-extrabold text-white mt-2">{completionRate}%</div>
-          <p className="text-[11px] text-slate-400 mt-1">{metrics.completedCount} of {metrics.totalApplications} completed</p>
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-cyan-500/30">
-            <div className="h-full bg-cyan-500" style={{ width: `${completionRate}%` }} />
-          </div>
+      {/* Primary KPI Strip */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 bg-white p-4 rounded border border-zinc-200 divide-y lg:divide-y-0 lg:divide-x divide-zinc-200">
+        <div className="px-3 py-1">
+          <div className="text-[11px] font-mono text-zinc-500 uppercase tracking-wider">Completion Rate</div>
+          <div className="text-2xl font-bold text-zinc-900 mt-1 font-mono">{completionRate}%</div>
+          <div className="text-[11px] text-zinc-500 mt-0.5">{metrics.completedCount} of {metrics.totalApplications} completed</div>
         </div>
 
-        <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 relative overflow-hidden">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Technical Pass Rate</span>
-            <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-          </div>
-          <div className="text-3xl font-extrabold text-emerald-400 mt-2">{metrics.passRate}%</div>
-          <p className="text-[11px] text-slate-400 mt-1">{metrics.passedCount} candidates qualified</p>
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-emerald-500/30">
-            <div className="h-full bg-emerald-500" style={{ width: `${metrics.passRate}%` }} />
-          </div>
+        <div className="px-3 py-1 pt-3 lg:pt-1">
+          <div className="text-[11px] font-mono text-zinc-500 uppercase tracking-wider">Pass Rate</div>
+          <div className="text-2xl font-bold text-emerald-700 mt-1 font-mono">{metrics.passRate}%</div>
+          <div className="text-[11px] text-zinc-500 mt-0.5">{metrics.passedCount} candidates qualified</div>
         </div>
 
-        <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 relative overflow-hidden">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Avg Test Duration</span>
-            <Clock className="h-4 w-4 text-indigo-400" />
-          </div>
-          <div className="text-3xl font-extrabold text-white mt-2">{metrics.avgDurationMinutes} <span className="text-sm font-normal text-slate-400">min</span></div>
-          <p className="text-[11px] text-slate-400 mt-1">Completion speed per candidate</p>
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-500/30">
-            <div className="h-full bg-indigo-500" style={{ width: '60%' }} />
-          </div>
+        <div className="px-3 py-1 pt-3 lg:pt-1">
+          <div className="text-[11px] font-mono text-zinc-500 uppercase tracking-wider">Avg Test Duration</div>
+          <div className="text-2xl font-bold text-zinc-900 mt-1 font-mono">{metrics.avgDurationMinutes} min</div>
+          <div className="text-[11px] text-zinc-500 mt-0.5">Completion speed</div>
         </div>
 
-        <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 relative overflow-hidden">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Avg Trust Score</span>
-            <Award className="h-4 w-4 text-purple-400" />
-          </div>
-          <div className="text-3xl font-extrabold text-purple-400 mt-2">{metrics.proctoring.avgIntegrityScore}%</div>
-          <p className="text-[11px] text-slate-400 mt-1">Anti-cheat security rating</p>
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-purple-500/30">
-            <div className="h-full bg-purple-500" style={{ width: `${metrics.proctoring.avgIntegrityScore}%` }} />
-          </div>
+        <div className="px-3 py-1 pt-3 lg:pt-1">
+          <div className="text-[11px] font-mono text-zinc-500 uppercase tracking-wider">Avg Integrity Rating</div>
+          <div className="text-2xl font-bold text-blue-700 mt-1 font-mono">{metrics.proctoring.avgIntegrityScore}%</div>
+          <div className="text-[11px] text-zinc-500 mt-0.5">Session integrity index</div>
         </div>
       </div>
 
-      {/* Hiring Funnel & Proctoring Security Section */}
+      {/* Funnel & Proctoring Breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Visual Hiring Funnel (2 Cols) */}
-        <div className="lg:col-span-2 bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-5">
-          <div className="flex justify-between items-center">
-            <h3 className="font-bold text-white text-base flex items-center space-x-2">
-              <Layers className="h-4 w-4 text-blue-400" />
-              <span>Hiring Conversion Funnel</span>
-            </h3>
-            <span className="text-xs text-slate-400 font-mono">Stage Efficiency</span>
+        {/* Conversion Funnel */}
+        <div className="lg:col-span-2 bg-white p-5 rounded border border-zinc-200 space-y-4">
+          <div className="flex justify-between items-center pb-2 border-b border-zinc-100">
+            <h3 className="font-bold text-zinc-900 text-sm">Hiring Conversion Funnel</h3>
+            <span className="text-xs font-mono text-zinc-500">Stage Conversion</span>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-3 pt-1">
             {funnelStages.map((stage, idx) => (
-              <div key={idx} className="space-y-1.5">
-                <div className="flex justify-between items-center text-xs font-medium">
-                  <span className="text-slate-300 font-semibold">{stage.label}</span>
-                  <span className="text-slate-400 font-mono">
-                    <strong className="text-white">{stage.count}</strong> ({stage.pct}%)
+              <div key={idx} className="space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="font-medium text-zinc-800">{stage.label}</span>
+                  <span className="font-mono text-zinc-600">
+                    <strong className="text-zinc-900">{stage.count}</strong> ({stage.pct}%)
                   </span>
                 </div>
-                <div className="h-3 w-full bg-slate-950 rounded-full overflow-hidden border border-slate-800 p-0.5">
+                <div className="h-2 w-full bg-zinc-100 rounded overflow-hidden">
                   <div 
-                    className={`h-full rounded-full transition-all duration-500 ${stage.color}`}
-                    style={{ width: `${Math.max(stage.pct, 4)}%` }}
+                    className="h-full bg-blue-600 transition-all duration-300"
+                    style={{ width: `${Math.max(stage.pct, 2)}%` }}
                   />
                 </div>
               </div>
@@ -199,99 +175,63 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ jobs = [
           </div>
         </div>
 
-        {/* Proctoring & Integrity Audit Box (1 Col) */}
-        <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-4 flex flex-col justify-between">
+        {/* Proctoring Summary */}
+        <div className="bg-white p-5 rounded border border-zinc-200 space-y-4 flex flex-col justify-between">
           <div>
-            <h3 className="font-bold text-white text-base flex items-center space-x-2">
-              <ShieldAlert className="h-4 w-4 text-purple-400" />
-              <span>Proctoring Security Summary</span>
-            </h3>
-            <p className="text-xs text-slate-400 mt-1">Aggregated candidate integrity flags across all active assessment sessions.</p>
+            <div className="pb-2 border-b border-zinc-100">
+              <h3 className="font-bold text-zinc-900 text-sm">Proctoring Verification Summary</h3>
+              <p className="text-xs text-zinc-500 mt-0.5">Integrity review flags across active assessment sessions.</p>
+            </div>
+
+            <div className="space-y-3 pt-3 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-zinc-600">Tab Switches Intercepted:</span>
+                <span className="font-mono font-bold text-zinc-900">{metrics.proctoring.totalTabSwitches}</span>
+              </div>
+              <div className="flex justify-between items-center border-t border-zinc-100 pt-2.5">
+                <span className="text-zinc-600">Fullscreen Exits Intercepted:</span>
+                <span className="font-mono font-bold text-zinc-900">{metrics.proctoring.totalFullscreenExits}</span>
+              </div>
+              <div className="flex justify-between items-center border-t border-zinc-100 pt-2.5">
+                <span className="text-zinc-600">Avg Integrity Trust Rating:</span>
+                <span className="font-mono font-bold text-blue-700">{metrics.proctoring.avgIntegrityScore}%</span>
+              </div>
+            </div>
           </div>
 
-          <div className="space-y-3 bg-slate-950 p-4 rounded-xl border border-slate-800/80">
-            <div className="flex justify-between items-center text-xs">
-              <span className="text-slate-400">Total Tab Switches Recorded:</span>
-              <span className="font-bold text-amber-400 font-mono">{metrics.proctoring.totalTabSwitches}</span>
-            </div>
-            <div className="flex justify-between items-center text-xs border-t border-slate-800/60 pt-2.5">
-              <span className="text-slate-400">Fullscreen Exits Intercepted:</span>
-              <span className="font-bold text-red-400 font-mono">{metrics.proctoring.totalFullscreenExits}</span>
-            </div>
-            <div className="flex justify-between items-center text-xs border-t border-slate-800/60 pt-2.5">
-              <span className="text-slate-400">Average Platform Trust Score:</span>
-              <span className="font-bold text-purple-400 font-mono">{metrics.proctoring.avgIntegrityScore}%</span>
-            </div>
-          </div>
-
-          <div className="p-3.5 bg-purple-500/10 rounded-xl border border-purple-500/20 text-[11px] text-purple-300 leading-relaxed">
-            💡 Candidate submissions with an integrity trust score below 75% are automatically flagged with high risk warnings in the Candidate Detail Audit drawer.
+          <div className="p-3 bg-zinc-50 rounded border border-zinc-200 text-[11px] text-zinc-600 leading-relaxed font-mono">
+            Candidate submissions with integrity trust score &lt; 75% are automatically flagged for manual recruiter review.
           </div>
         </div>
 
       </div>
 
-      {/* Skill Mastery Breakdown & Active Jobs Matrix */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
-        {/* Skill Mastery Radar / Bar Charts */}
-        <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-4">
-          <h3 className="font-bold text-white text-base flex items-center space-x-2">
-            <PieChart className="h-4 w-4 text-indigo-400" />
-            <span>Aggregate Candidate Skill Proficiency</span>
-          </h3>
+      {/* Skill Breakdown */}
+      <div className="bg-white p-5 rounded border border-zinc-200 space-y-4">
+        <h3 className="font-bold text-zinc-900 text-sm pb-2 border-b border-zinc-100">
+          Aggregate Candidate Skill Mastery
+        </h3>
 
-          {metrics.skillAverages.length === 0 ? (
-            <p className="text-xs text-slate-400 italic py-6 text-center">No skill breakdown data recorded yet.</p>
-          ) : (
-            <div className="space-y-3.5">
-              {metrics.skillAverages.map((sk, idx) => (
-                <div key={idx} className="space-y-1">
-                  <div className="flex justify-between text-xs font-semibold">
-                    <span className="text-slate-200">{sk.skill}</span>
-                    <span className="text-indigo-400 font-mono">{sk.percentage}%</span>
-                  </div>
-                  <div className="h-2.5 w-full bg-slate-950 rounded-full overflow-hidden border border-slate-800">
-                    <div 
-                      className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-500"
-                      style={{ width: `${sk.percentage}%` }}
-                    />
-                  </div>
+        {metrics.skillAverages.length === 0 ? (
+          <p className="text-xs text-zinc-500 font-mono py-4 text-center">No skill breakdown data recorded yet.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+            {metrics.skillAverages.map((sk, idx) => (
+              <div key={idx} className="p-3 bg-zinc-50 rounded border border-zinc-200 space-y-1.5">
+                <div className="flex justify-between text-xs font-semibold">
+                  <span className="text-zinc-900">{sk.skill}</span>
+                  <span className="font-mono text-blue-700">{sk.percentage}%</span>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Job Openings Health & Pass Rates */}
-        <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-4">
-          <h3 className="font-bold text-white text-base flex items-center space-x-2">
-            <Award className="h-4 w-4 text-emerald-400" />
-            <span>Active Job Openings Health</span>
-          </h3>
-
-          <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
-            {jobs.length === 0 ? (
-              <p className="text-xs text-slate-400 italic py-6 text-center">No active job openings created yet.</p>
-            ) : (
-              jobs.map((job) => (
-                <div key={job.id} className="p-3.5 bg-slate-950 rounded-xl border border-slate-800 flex justify-between items-center">
-                  <div>
-                    <h4 className="text-xs font-bold text-white">{job.title}</h4>
-                    <p className="text-[11px] text-slate-400 mt-0.5">{job.location} • Cutoff {job.passThreshold}%</p>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xs font-bold text-blue-400 font-mono">{job.stats?.totalApps || 0} Candidates</div>
-                    <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-semibold border border-emerald-500/20">
-                      {job.stats?.passedApps || 0} Passed
-                    </span>
-                  </div>
+                <div className="h-1.5 w-full bg-zinc-200 rounded overflow-hidden">
+                  <div 
+                    className="h-full bg-blue-600 transition-all duration-300"
+                    style={{ width: `${sk.percentage}%` }}
+                  />
                 </div>
-              ))
-            )}
+              </div>
+            ))}
           </div>
-        </div>
-
+        )}
       </div>
 
     </div>

@@ -1,0 +1,2154 @@
+{
+  "exportedAt": "2026-09-10T18:06:29.167Z",
+  "companies": [
+    {
+      "id": "6fdd1fd1-d81a-4603-8471-69f2ade7b240",
+      "name": "Acme Cloud Technologies",
+      "logoUrl": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=60",
+      "createdAt": "2026-09-07T17:11:54.652Z"
+    }
+  ],
+  "users": [
+    {
+      "id": "427524c5-df21-4b75-9983-05182cb185e7",
+      "email": "admin@techscreen.com",
+      "name": "System Admin",
+      "role": "ADMIN",
+      "companyId": "6fdd1fd1-d81a-4603-8471-69f2ade7b240",
+      "createdAt": "2026-09-07T17:11:54.658Z"
+    },
+    {
+      "id": "af085e2d-bbbf-4ee2-ade4-a3952263ada7",
+      "email": "recruiter@acme.com",
+      "name": "Sarah Jenkins (Lead HR)",
+      "role": "RECRUITER",
+      "companyId": "6fdd1fd1-d81a-4603-8471-69f2ade7b240",
+      "createdAt": "2026-09-07T17:11:54.665Z"
+    }
+  ],
+  "templates": [
+    {
+      "id": "4de5d2c0-9414-45e1-9ae8-762b1f638d47",
+      "title": "DevOps Engineer Technical Screening",
+      "roleCategory": "DEVOPS",
+      "durationMinutes": 15,
+      "totalQuestions": 15,
+      "passPercentage": 70,
+      "shuffleQuestions": true,
+      "shuffleOptions": true,
+      "createdAt": "2026-09-07T17:11:54.675Z",
+      "sections": [
+        {
+          "id": "d1efb01b-deed-46e3-9c66-38a39fa3b810",
+          "templateId": "4de5d2c0-9414-45e1-9ae8-762b1f638d47",
+          "title": "Git Version Control",
+          "description": "Branching, merging, rebasing, and repository management.",
+          "questionCount": 5,
+          "questions": [
+            {
+              "id": "d1824fa9-28dc-4416-a1d4-2ed1ea64a4e4",
+              "sectionId": "d1efb01b-deed-46e3-9c66-38a39fa3b810",
+              "prompt": "Which command creates a new Git branch named \"feature\" and immediately switches to it?",
+              "type": "MCQ_SINGLE",
+              "difficulty": "EASY",
+              "explanation": "git checkout -b feature creates and checks out the new branch in one command.",
+              "codeTemplate": null,
+              "testCasesJson": null,
+              "options": [
+                {
+                  "id": "151794eb-1a58-42bc-97c5-0ab40e182fb0",
+                  "questionId": "d1824fa9-28dc-4416-a1d4-2ed1ea64a4e4",
+                  "text": "git branch feature",
+                  "isCorrect": false
+                },
+                {
+                  "id": "1728fb6a-cab7-4116-8b25-b9875718324d",
+                  "questionId": "d1824fa9-28dc-4416-a1d4-2ed1ea64a4e4",
+                  "text": "git checkout -b feature",
+                  "isCorrect": true
+                },
+                {
+                  "id": "f056df34-bde0-4267-aaf4-7012b8aac379",
+                  "questionId": "d1824fa9-28dc-4416-a1d4-2ed1ea64a4e4",
+                  "text": "git merge feature",
+                  "isCorrect": false
+                },
+                {
+                  "id": "60906429-f41d-4d03-9943-93a28fae5b3b",
+                  "questionId": "d1824fa9-28dc-4416-a1d4-2ed1ea64a4e4",
+                  "text": "git switch -c --delete feature",
+                  "isCorrect": false
+                }
+              ]
+            },
+            {
+              "id": "8beb7b14-7fee-4670-b3c8-6f6b69f36d02",
+              "sectionId": "d1efb01b-deed-46e3-9c66-38a39fa3b810",
+              "prompt": "What is the primary difference between `git merge` and `git rebase`?",
+              "type": "MCQ_SINGLE",
+              "difficulty": "MEDIUM",
+              "explanation": "Rebase rewrites project history by moving commits onto a new base, creating a linear history.",
+              "codeTemplate": null,
+              "testCasesJson": null,
+              "options": [
+                {
+                  "id": "5a40763d-5cfe-4e09-a398-0dd104601f24",
+                  "questionId": "8beb7b14-7fee-4670-b3c8-6f6b69f36d02",
+                  "text": "git merge deletes history, git rebase preserves it",
+                  "isCorrect": false
+                },
+                {
+                  "id": "5a15d3ea-abf2-47e0-99ce-c041bb156d57",
+                  "questionId": "8beb7b14-7fee-4670-b3c8-6f6b69f36d02",
+                  "text": "git rebase rewrites commit history to create a linear sequence",
+                  "isCorrect": true
+                },
+                {
+                  "id": "9b2a3d03-80c0-471d-8b4f-53444c89f306",
+                  "questionId": "8beb7b14-7fee-4670-b3c8-6f6b69f36d02",
+                  "text": "git merge is only used for remote repositories",
+                  "isCorrect": false
+                },
+                {
+                  "id": "70cf68ed-a04e-42fe-9475-c7ea8bda8047",
+                  "questionId": "8beb7b14-7fee-4670-b3c8-6f6b69f36d02",
+                  "text": "There is no difference; they are exact aliases",
+                  "isCorrect": false
+                }
+              ]
+            },
+            {
+              "id": "5a6576a0-9b78-4a88-b3ce-163724cb3012",
+              "sectionId": "d1efb01b-deed-46e3-9c66-38a39fa3b810",
+              "prompt": "Which command allows you to temporarily shelve (store) uncommitted changes without committing them?",
+              "type": "MCQ_SINGLE",
+              "difficulty": "EASY",
+              "explanation": "git stash saves uncommitted modifications to a temporary stack.",
+              "codeTemplate": null,
+              "testCasesJson": null,
+              "options": [
+                {
+                  "id": "f693c939-848f-4fae-b999-17ed2b8150e0",
+                  "questionId": "5a6576a0-9b78-4a88-b3ce-163724cb3012",
+                  "text": "git hold",
+                  "isCorrect": false
+                },
+                {
+                  "id": "bea0a3fc-ae62-425b-b6fd-f88d7dcfa01f",
+                  "questionId": "5a6576a0-9b78-4a88-b3ce-163724cb3012",
+                  "text": "git stash",
+                  "isCorrect": true
+                },
+                {
+                  "id": "a77cbdf2-23e8-4e79-ab7c-2100dc91cdb6",
+                  "questionId": "5a6576a0-9b78-4a88-b3ce-163724cb3012",
+                  "text": "git reset --soft",
+                  "isCorrect": false
+                },
+                {
+                  "id": "1d21f5ca-6648-4e22-b560-366575fe82b0",
+                  "questionId": "5a6576a0-9b78-4a88-b3ce-163724cb3012",
+                  "text": "git save",
+                  "isCorrect": false
+                }
+              ]
+            },
+            {
+              "id": "df328ce0-fa77-495a-9dbb-e477f995812a",
+              "sectionId": "d1efb01b-deed-46e3-9c66-38a39fa3b810",
+              "prompt": "How do you discard changes in a working directory file `app.js` and restore it to the LAST commit?",
+              "type": "MCQ_SINGLE",
+              "difficulty": "MEDIUM",
+              "explanation": "git checkout -- app.js or git restore app.js discards local changes.",
+              "codeTemplate": null,
+              "testCasesJson": null,
+              "options": [
+                {
+                  "id": "18421e8c-d1ed-4399-82f4-3dc12a146b8a",
+                  "questionId": "df328ce0-fa77-495a-9dbb-e477f995812a",
+                  "text": "git restore app.js",
+                  "isCorrect": true
+                },
+                {
+                  "id": "890c53e3-856f-4a5d-b640-35f4e5c4ce93",
+                  "questionId": "df328ce0-fa77-495a-9dbb-e477f995812a",
+                  "text": "git clean -df app.js",
+                  "isCorrect": false
+                },
+                {
+                  "id": "853fecbc-9057-4de5-9979-d5ce5d891e76",
+                  "questionId": "df328ce0-fa77-495a-9dbb-e477f995812a",
+                  "text": "git remove app.js",
+                  "isCorrect": false
+                },
+                {
+                  "id": "d43305cc-6f6a-40a6-a175-2e9f668a5f05",
+                  "questionId": "df328ce0-fa77-495a-9dbb-e477f995812a",
+                  "text": "git revert app.js",
+                  "isCorrect": false
+                }
+              ]
+            },
+            {
+              "id": "dac03b99-6eb4-4608-b58f-bdfccb1229b9",
+              "sectionId": "d1efb01b-deed-46e3-9c66-38a39fa3b810",
+              "prompt": "Which Git command shows the commit hash, author, date, and commit message history?",
+              "type": "MCQ_SINGLE",
+              "difficulty": "EASY",
+              "explanation": "git log outputs commit history details.",
+              "codeTemplate": null,
+              "testCasesJson": null,
+              "options": [
+                {
+                  "id": "0aad9849-0a77-400e-a4d4-2eb6e4a56222",
+                  "questionId": "dac03b99-6eb4-4608-b58f-bdfccb1229b9",
+                  "text": "git status",
+                  "isCorrect": false
+                },
+                {
+                  "id": "faa1b104-d7c5-496c-a883-9f90cb7e32fe",
+                  "questionId": "dac03b99-6eb4-4608-b58f-bdfccb1229b9",
+                  "text": "git history",
+                  "isCorrect": false
+                },
+                {
+                  "id": "e8410cb5-d970-425a-9b3a-872b09fcecb5",
+                  "questionId": "dac03b99-6eb4-4608-b58f-bdfccb1229b9",
+                  "text": "git log",
+                  "isCorrect": true
+                },
+                {
+                  "id": "3027e63f-0be3-435c-b4ab-de1cdf68a7d9",
+                  "questionId": "dac03b99-6eb4-4608-b58f-bdfccb1229b9",
+                  "text": "git diff",
+                  "isCorrect": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "7af5e916-79c9-4fd1-a417-d90b8a93db8c",
+          "templateId": "4de5d2c0-9414-45e1-9ae8-762b1f638d47",
+          "title": "Linux Systems Administration",
+          "description": "CLI commands, file permissions, processes, and networking.",
+          "questionCount": 5,
+          "questions": [
+            {
+              "id": "8fb4d6c9-225b-4004-9849-1b6159bf6dfa",
+              "sectionId": "7af5e916-79c9-4fd1-a417-d90b8a93db8c",
+              "prompt": "Which numeric permission code corresponds to `rwxr-xr--` in Linux chmod syntax?",
+              "type": "MCQ_SINGLE",
+              "difficulty": "MEDIUM",
+              "explanation": "rwx = 7 (4+2+1), r-x = 5 (4+0+1), r-- = 4 (4+0+0). Total = 754.",
+              "codeTemplate": null,
+              "testCasesJson": null,
+              "options": [
+                {
+                  "id": "c94fb749-9d1a-4de9-8e39-af341543c906",
+                  "questionId": "8fb4d6c9-225b-4004-9849-1b6159bf6dfa",
+                  "text": "755",
+                  "isCorrect": false
+                },
+                {
+                  "id": "0eeaa512-d5fc-4467-abfa-ee3e433f0468",
+                  "questionId": "8fb4d6c9-225b-4004-9849-1b6159bf6dfa",
+                  "text": "754",
+                  "isCorrect": true
+                },
+                {
+                  "id": "53a0209d-e719-4135-be8e-f43571270154",
+                  "questionId": "8fb4d6c9-225b-4004-9849-1b6159bf6dfa",
+                  "text": "644",
+                  "isCorrect": false
+                },
+                {
+                  "id": "ec2e5207-e245-4028-a3c3-39a338577f2d",
+                  "questionId": "8fb4d6c9-225b-4004-9849-1b6159bf6dfa",
+                  "text": "777",
+                  "isCorrect": false
+                }
+              ]
+            },
+            {
+              "id": "d9ffc5f9-2ec2-4c86-9ef9-0734e6c12d2f",
+              "sectionId": "7af5e916-79c9-4fd1-a417-d90b8a93db8c",
+              "prompt": "Which command searches for the pattern \"ERROR\" across all `.log` files recursively in `/var/log`?",
+              "type": "MCQ_SINGLE",
+              "difficulty": "EASY",
+              "explanation": "grep -rn \"ERROR\" /var/log/*.log performs recursive pattern matching with line numbers.",
+              "codeTemplate": null,
+              "testCasesJson": null,
+              "options": [
+                {
+                  "id": "7df53eeb-db37-40d2-9585-d8d6e95c9251",
+                  "questionId": "d9ffc5f9-2ec2-4c86-9ef9-0734e6c12d2f",
+                  "text": "find /var/log -name \"ERROR\"",
+                  "isCorrect": false
+                },
+                {
+                  "id": "d5a5d169-8d44-416a-97a8-6443d91671ba",
+                  "questionId": "d9ffc5f9-2ec2-4c86-9ef9-0734e6c12d2f",
+                  "text": "grep -r \"ERROR\" /var/log/*.log",
+                  "isCorrect": true
+                },
+                {
+                  "id": "c3736c1b-2cca-4de1-9eba-f92fecf4a273",
+                  "questionId": "d9ffc5f9-2ec2-4c86-9ef9-0734e6c12d2f",
+                  "text": "cat /var/log | search \"ERROR\"",
+                  "isCorrect": false
+                },
+                {
+                  "id": "2b7f7196-c409-4f76-a987-0f93d3680628",
+                  "questionId": "d9ffc5f9-2ec2-4c86-9ef9-0734e6c12d2f",
+                  "text": "locate ERROR /var/log",
+                  "isCorrect": false
+                }
+              ]
+            },
+            {
+              "id": "3b28b8ca-c5f3-46b6-8473-f4a12fe0f338",
+              "sectionId": "7af5e916-79c9-4fd1-a417-d90b8a93db8c",
+              "prompt": "What tool is used to monitor real-time system process metrics, CPU, and memory consumption in terminal?",
+              "type": "MCQ_SINGLE",
+              "difficulty": "EASY",
+              "explanation": "htop / top gives real-time process statistics.",
+              "codeTemplate": null,
+              "testCasesJson": null,
+              "options": [
+                {
+                  "id": "85ad78b8-7cbd-4677-9139-8dbe6e09f807",
+                  "questionId": "3b28b8ca-c5f3-46b6-8473-f4a12fe0f338",
+                  "text": "top",
+                  "isCorrect": true
+                },
+                {
+                  "id": "f345ad4d-457a-4015-81c4-a0c8a1f23b49",
+                  "questionId": "3b28b8ca-c5f3-46b6-8473-f4a12fe0f338",
+                  "text": "df -h",
+                  "isCorrect": false
+                },
+                {
+                  "id": "ee01eeb3-96ae-4453-b752-2acbf760a4b1",
+                  "questionId": "3b28b8ca-c5f3-46b6-8473-f4a12fe0f338",
+                  "text": "free -m",
+                  "isCorrect": false
+                },
+                {
+                  "id": "245a4a6c-9fca-47f2-a176-d2add4c538da",
+                  "questionId": "3b28b8ca-c5f3-46b6-8473-f4a12fe0f338",
+                  "text": "netstat",
+                  "isCorrect": false
+                }
+              ]
+            },
+            {
+              "id": "8e7b7438-b03c-425c-a4f5-caae897117ac",
+              "sectionId": "7af5e916-79c9-4fd1-a417-d90b8a93db8c",
+              "prompt": "Which command checks active listening TCP ports and associated processes in Linux?",
+              "type": "MCQ_SINGLE",
+              "difficulty": "MEDIUM",
+              "explanation": "ss -tulpn or netstat -tulpn lists listening ports and PIDs.",
+              "codeTemplate": null,
+              "testCasesJson": null,
+              "options": [
+                {
+                  "id": "1c945e4e-4fa7-4319-9eac-2122c6e5e0fe",
+                  "questionId": "8e7b7438-b03c-425c-a4f5-caae897117ac",
+                  "text": "ss -tulpn",
+                  "isCorrect": true
+                },
+                {
+                  "id": "b1309ec1-98fb-48e0-bc19-2f9e544860b7",
+                  "questionId": "8e7b7438-b03c-425c-a4f5-caae897117ac",
+                  "text": "ifconfig -a",
+                  "isCorrect": false
+                },
+                {
+                  "id": "31f05eba-f5f0-4520-98c9-07a9752a0294",
+                  "questionId": "8e7b7438-b03c-425c-a4f5-caae897117ac",
+                  "text": "traceroute",
+                  "isCorrect": false
+                },
+                {
+                  "id": "a925c0dd-576d-4804-8cfd-2218856804fa",
+                  "questionId": "8e7b7438-b03c-425c-a4f5-caae897117ac",
+                  "text": "ping -l",
+                  "isCorrect": false
+                }
+              ]
+            },
+            {
+              "id": "843f3787-a2c5-4cc4-b341-e1892c069682",
+              "sectionId": "7af5e916-79c9-4fd1-a417-d90b8a93db8c",
+              "prompt": "How do you send a background SIGTERM signal to terminate a process with PID 4321?",
+              "type": "MCQ_SINGLE",
+              "difficulty": "EASY",
+              "explanation": "kill 4321 sends default SIGTERM (15) to PID 4321.",
+              "codeTemplate": null,
+              "testCasesJson": null,
+              "options": [
+                {
+                  "id": "50c8ec46-b007-46aa-95a1-081c148f1af7",
+                  "questionId": "843f3787-a2c5-4cc4-b341-e1892c069682",
+                  "text": "kill 4321",
+                  "isCorrect": true
+                },
+                {
+                  "id": "a92dc6bf-3f9f-4755-983d-4fb2235c9a16",
+                  "questionId": "843f3787-a2c5-4cc4-b341-e1892c069682",
+                  "text": "stop process 4321",
+                  "isCorrect": false
+                },
+                {
+                  "id": "164c525a-7c11-4c2b-a6fb-ec3339e939dc",
+                  "questionId": "843f3787-a2c5-4cc4-b341-e1892c069682",
+                  "text": "exit 4321",
+                  "isCorrect": false
+                },
+                {
+                  "id": "5b1d269e-3f02-4fe4-bd02-8b1df940efd3",
+                  "questionId": "843f3787-a2c5-4cc4-b341-e1892c069682",
+                  "text": "taskkill /PID 4321",
+                  "isCorrect": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "88070301-7e11-41c5-b9cd-9540fa2a4695",
+          "templateId": "4de5d2c0-9414-45e1-9ae8-762b1f638d47",
+          "title": "Docker & CI/CD Pipelines",
+          "description": "Containerization, Dockerfile optimizations, and automated build flows.",
+          "questionCount": 10,
+          "questions": [
+            {
+              "id": "5ae8ad46-6799-4066-8c48-37bc96c6b8ba",
+              "sectionId": "88070301-7e11-41c5-b9cd-9540fa2a4695",
+              "prompt": "Which Dockerfile instruction specifies the default command executed when a container starts?",
+              "type": "MCQ_SINGLE",
+              "difficulty": "EASY",
+              "explanation": "CMD specifies the execution defaults for a starting container.",
+              "codeTemplate": null,
+              "testCasesJson": null,
+              "options": [
+                {
+                  "id": "20164a3c-73e7-4395-ab83-7c5f5e4991f1",
+                  "questionId": "5ae8ad46-6799-4066-8c48-37bc96c6b8ba",
+                  "text": "RUN",
+                  "isCorrect": false
+                },
+                {
+                  "id": "098202c5-687d-452a-9e33-fa2d0a7945a7",
+                  "questionId": "5ae8ad46-6799-4066-8c48-37bc96c6b8ba",
+                  "text": "ENV",
+                  "isCorrect": false
+                },
+                {
+                  "id": "988357d7-4ec5-4461-aedf-a220d476ecd3",
+                  "questionId": "5ae8ad46-6799-4066-8c48-37bc96c6b8ba",
+                  "text": "CMD",
+                  "isCorrect": true
+                },
+                {
+                  "id": "ab203bda-30a0-4086-ab5c-2a99e7894ee6",
+                  "questionId": "5ae8ad46-6799-4066-8c48-37bc96c6b8ba",
+                  "text": "EXPOSE",
+                  "isCorrect": false
+                }
+              ]
+            },
+            {
+              "id": "ed6fade0-0f85-444c-bf12-dc59b0de1947",
+              "sectionId": "88070301-7e11-41c5-b9cd-9540fa2a4695",
+              "prompt": "What is the purpose of multi-stage Docker builds?",
+              "type": "MCQ_SINGLE",
+              "difficulty": "MEDIUM",
+              "explanation": "Multi-stage builds allow separating build tools from final production images to keep image size minimal.",
+              "codeTemplate": null,
+              "testCasesJson": null,
+              "options": [
+                {
+                  "id": "71df6bcf-01be-4a2e-b159-d6a76a4d3af4",
+                  "questionId": "ed6fade0-0f85-444c-bf12-dc59b0de1947",
+                  "text": "To run multiple containers simultaneously",
+                  "isCorrect": false
+                },
+                {
+                  "id": "cc5d71b6-6744-46a7-b162-b374a1623cf1",
+                  "questionId": "ed6fade0-0f85-444c-bf12-dc59b0de1947",
+                  "text": "To produce smaller production images by discarding build-time tools",
+                  "isCorrect": true
+                },
+                {
+                  "id": "b6ac1140-2748-4234-b6d3-29b6eda5ea57",
+                  "questionId": "ed6fade0-0f85-444c-bf12-dc59b0de1947",
+                  "text": "To bypass container security scanners",
+                  "isCorrect": false
+                },
+                {
+                  "id": "3859952a-caf5-419f-bdd8-c905f607b3ce",
+                  "questionId": "ed6fade0-0f85-444c-bf12-dc59b0de1947",
+                  "text": "To compile code without installing Docker engine",
+                  "isCorrect": false
+                }
+              ]
+            },
+            {
+              "id": "d126b2b8-fce6-4014-87ff-089a4540fb02",
+              "sectionId": "88070301-7e11-41c5-b9cd-9540fa2a4695",
+              "prompt": "Which command removes all stopped containers, unused networks, and dangling images in Docker?",
+              "type": "MCQ_SINGLE",
+              "difficulty": "MEDIUM",
+              "explanation": "docker system prune cleans up unused Docker resources.",
+              "codeTemplate": null,
+              "testCasesJson": null,
+              "options": [
+                {
+                  "id": "7b2aa4c8-7b12-4697-a313-e892420d0234",
+                  "questionId": "d126b2b8-fce6-4014-87ff-089a4540fb02",
+                  "text": "docker system prune",
+                  "isCorrect": true
+                },
+                {
+                  "id": "7c1b18cf-8445-431e-9045-0a77e13e5830",
+                  "questionId": "d126b2b8-fce6-4014-87ff-089a4540fb02",
+                  "text": "docker container destroy --all",
+                  "isCorrect": false
+                },
+                {
+                  "id": "a90fce2e-1d12-4d36-a590-0f9d58530427",
+                  "questionId": "d126b2b8-fce6-4014-87ff-089a4540fb02",
+                  "text": "docker purge images",
+                  "isCorrect": false
+                },
+                {
+                  "id": "260d6e59-6ac8-44fb-9e51-f3d3f21258c6",
+                  "questionId": "d126b2b8-fce6-4014-87ff-089a4540fb02",
+                  "text": "docker clean --force",
+                  "isCorrect": false
+                }
+              ]
+            },
+            {
+              "id": "33ecf65b-57bb-4739-a47c-d901b20d6b72",
+              "sectionId": "88070301-7e11-41c5-b9cd-9540fa2a4695",
+              "prompt": "In Docker Compose, which keyword links host directory `./data` to container path `/app/data`?",
+              "type": "MCQ_SINGLE",
+              "difficulty": "EASY",
+              "explanation": "volumes mounts host paths into containers.",
+              "codeTemplate": null,
+              "testCasesJson": null,
+              "options": [
+                {
+                  "id": "42bf29ed-b085-45a0-9fa7-7e8f28e2a1da",
+                  "questionId": "33ecf65b-57bb-4739-a47c-d901b20d6b72",
+                  "text": "ports",
+                  "isCorrect": false
+                },
+                {
+                  "id": "90a3fef6-89ff-4f46-81cd-f41dec2dd7b0",
+                  "questionId": "33ecf65b-57bb-4739-a47c-d901b20d6b72",
+                  "text": "volumes",
+                  "isCorrect": true
+                },
+                {
+                  "id": "0d389844-9b04-4821-bc5f-29259b7dd768",
+                  "questionId": "33ecf65b-57bb-4739-a47c-d901b20d6b72",
+                  "text": "environment",
+                  "isCorrect": false
+                },
+                {
+                  "id": "15d9c3cf-ce27-40eb-a1e1-a68d026aa924",
+                  "questionId": "33ecf65b-57bb-4739-a47c-d901b20d6b72",
+                  "text": "links",
+                  "isCorrect": false
+                }
+              ]
+            },
+            {
+              "id": "3a732e13-833f-4bd1-babc-078ce955bda1",
+              "sectionId": "88070301-7e11-41c5-b9cd-9540fa2a4695",
+              "prompt": "Select all features that characterize immutable infrastructure deployment:",
+              "type": "MCQ_MULTI",
+              "difficulty": "HARD",
+              "explanation": "Immutable infrastructure replaces servers entirely rather than modifying them in place.",
+              "codeTemplate": null,
+              "testCasesJson": null,
+              "options": [
+                {
+                  "id": "c0c1a7ba-4630-44f2-aa75-304bfef0ab38",
+                  "questionId": "3a732e13-833f-4bd1-babc-078ce955bda1",
+                  "text": "Servers are never modified after creation; they are replaced",
+                  "isCorrect": true
+                },
+                {
+                  "id": "c87e41f8-d4f9-470c-97b1-06c07e9fd691",
+                  "questionId": "3a732e13-833f-4bd1-babc-078ce955bda1",
+                  "text": "Reduces configuration drift across environments",
+                  "isCorrect": true
+                },
+                {
+                  "id": "5cb1aae9-3f86-415e-ab2a-4ef374a267b8",
+                  "questionId": "3a732e13-833f-4bd1-babc-078ce955bda1",
+                  "text": "Requires SSH into live production servers to apply hotfixes",
+                  "isCorrect": false
+                },
+                {
+                  "id": "3458e7d5-a37f-4003-ba45-dcd678b26d4b",
+                  "questionId": "3a732e13-833f-4bd1-babc-078ce955bda1",
+                  "text": "Uses versioned images/templates for automated rollbacks",
+                  "isCorrect": true
+                }
+              ]
+            },
+            {
+              "id": "c3c57e38-5e11-4f77-8614-69d8b6063325",
+              "sectionId": "88070301-7e11-41c5-b9cd-9540fa2a4695",
+              "prompt": "Write a function in JavaScript to implement Async JavaScript & Event Loop solution (MEDIUM difficulty - Part 1).",
+              "type": "CODING",
+              "difficulty": "MEDIUM",
+              "explanation": "AI-generated algorithm challenge evaluating core mastery in Async JavaScript & Event Loop.",
+              "codeTemplate": "/**\n * Challenge: Async JavaScript & Event Loop\n * Implement the function below.\n */\nfunction solveProblem(input) {\n  // Your code here\n  return input;\n}",
+              "testCasesJson": "[{\"input\":\"\\\"test_input_1\\\"\",\"expectedOutput\":\"\\\"test_input_1\\\"\",\"description\":\"Basic string input evaluation\"},{\"input\":\"42\",\"expectedOutput\":\"42\",\"description\":\"Numeric boundary test\"}]",
+              "options": []
+            },
+            {
+              "id": "5ba4e1a4-e3ca-469b-a4de-636eb243c1f9",
+              "sectionId": "88070301-7e11-41c5-b9cd-9540fa2a4695",
+              "prompt": "Write a function in JavaScript to implement Async JavaScript & Event Loop solution (MEDIUM difficulty - Part 2).",
+              "type": "CODING",
+              "difficulty": "MEDIUM",
+              "explanation": "AI-generated algorithm challenge evaluating core mastery in Async JavaScript & Event Loop.",
+              "codeTemplate": "/**\n * Challenge: Async JavaScript & Event Loop\n * Implement the function below.\n */\nfunction solveProblem(input) {\n  // Your code here\n  return input;\n}",
+              "testCasesJson": "[{\"input\":\"\\\"test_input_1\\\"\",\"expectedOutput\":\"\\\"test_input_1\\\"\",\"description\":\"Basic string input evaluation\"},{\"input\":\"42\",\"expectedOutput\":\"42\",\"description\":\"Numeric boundary test\"}]",
+              "options": []
+            },
+            {
+              "id": "b9f5b793-fea1-44ec-bdaf-12e4df07e1d0",
+              "sectionId": "88070301-7e11-41c5-b9cd-9540fa2a4695",
+              "prompt": "Write a function in JavaScript to implement Async JavaScript & Event Loop solution (MEDIUM difficulty - Part 3).",
+              "type": "CODING",
+              "difficulty": "MEDIUM",
+              "explanation": "AI-generated algorithm challenge evaluating core mastery in Async JavaScript & Event Loop.",
+              "codeTemplate": "/**\n * Challenge: Async JavaScript & Event Loop\n * Implement the function below.\n */\nfunction solveProblem(input) {\n  // Your code here\n  return input;\n}",
+              "testCasesJson": "[{\"input\":\"\\\"test_input_1\\\"\",\"expectedOutput\":\"\\\"test_input_1\\\"\",\"description\":\"Basic string input evaluation\"},{\"input\":\"42\",\"expectedOutput\":\"42\",\"description\":\"Numeric boundary test\"}]",
+              "options": []
+            },
+            {
+              "id": "d9233c91-638a-464a-8fc9-b71235d77eaa",
+              "sectionId": "88070301-7e11-41c5-b9cd-9540fa2a4695",
+              "prompt": "Write a function in JavaScript to implement Async JavaScript & Event Loop solution (MEDIUM difficulty - Part 4).",
+              "type": "CODING",
+              "difficulty": "MEDIUM",
+              "explanation": "AI-generated algorithm challenge evaluating core mastery in Async JavaScript & Event Loop.",
+              "codeTemplate": "/**\n * Challenge: Async JavaScript & Event Loop\n * Implement the function below.\n */\nfunction solveProblem(input) {\n  // Your code here\n  return input;\n}",
+              "testCasesJson": "[{\"input\":\"\\\"test_input_1\\\"\",\"expectedOutput\":\"\\\"test_input_1\\\"\",\"description\":\"Basic string input evaluation\"},{\"input\":\"42\",\"expectedOutput\":\"42\",\"description\":\"Numeric boundary test\"}]",
+              "options": []
+            },
+            {
+              "id": "77e9606e-c73f-45ab-8a13-8a5351337091",
+              "sectionId": "88070301-7e11-41c5-b9cd-9540fa2a4695",
+              "prompt": "Write a function in JavaScript to implement Async JavaScript & Event Loop solution (MEDIUM difficulty - Part 5).",
+              "type": "CODING",
+              "difficulty": "MEDIUM",
+              "explanation": "AI-generated algorithm challenge evaluating core mastery in Async JavaScript & Event Loop.",
+              "codeTemplate": "/**\n * Challenge: Async JavaScript & Event Loop\n * Implement the function below.\n */\nfunction solveProblem(input) {\n  // Your code here\n  return input;\n}",
+              "testCasesJson": "[{\"input\":\"\\\"test_input_1\\\"\",\"expectedOutput\":\"\\\"test_input_1\\\"\",\"description\":\"Basic string input evaluation\"},{\"input\":\"42\",\"expectedOutput\":\"42\",\"description\":\"Numeric boundary test\"}]",
+              "options": []
+            }
+          ]
+        },
+        {
+          "id": "b1baa9d1-3a1a-4ca2-adcf-3aa4687db6b4",
+          "templateId": "4de5d2c0-9414-45e1-9ae8-762b1f638d47",
+          "title": "Practical Scripting & Logic",
+          "description": "Hands-on algorithm implementation and array processing.",
+          "questionCount": 1,
+          "questions": [
+            {
+              "id": "64754658-13b7-4d06-8545-929d4b7ea79b",
+              "sectionId": "b1baa9d1-3a1a-4ca2-adcf-3aa4687db6b4",
+              "prompt": "Write a JavaScript function named `solution(arr)` that accepts an array of numbers and returns the sum of all POSITIVE numbers in the array. If no positive numbers exist, return 0.",
+              "type": "CODING",
+              "difficulty": "MEDIUM",
+              "explanation": "Use Array.prototype.filter() or reduce() to sum elements > 0.",
+              "codeTemplate": "function solution(arr) {\n  // Write your code here\n  return arr.filter(x => x > 0).reduce((a, b) => a + b, 0);\n}",
+              "testCasesJson": "[{\"input\":\"[1, -4, 7, 12]\",\"expectedOutput\":\"20\",\"description\":\"Filters out negative numbers\"},{\"input\":\"[-1, -2, -3]\",\"expectedOutput\":\"0\",\"description\":\"Returns 0 for all negative numbers\"},{\"input\":\"[5, 10, 15]\",\"expectedOutput\":\"30\",\"description\":\"Sums all positive integers\"}]",
+              "options": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fb28995d-4765-493d-842a-019011cfaedf",
+      "title": "Frontend Engineer Technical Assessment",
+      "roleCategory": "FRONTEND",
+      "durationMinutes": 15,
+      "totalQuestions": 10,
+      "passPercentage": 70,
+      "shuffleQuestions": true,
+      "shuffleOptions": true,
+      "createdAt": "2026-09-07T17:11:54.790Z",
+      "sections": [
+        {
+          "id": "82abdb68-5157-4383-af52-1f0b36849bf1",
+          "templateId": "fb28995d-4765-493d-842a-019011cfaedf",
+          "title": "JavaScript & Web Core",
+          "description": "Promises, closures, event loop, and DOM.",
+          "questionCount": 5,
+          "questions": [
+            {
+              "id": "1589675b-6969-4946-aa06-05d580ff6fdc",
+              "sectionId": "82abdb68-5157-4383-af52-1f0b36849bf1",
+              "prompt": "What will `console.log(typeof NaN)` output in JavaScript?",
+              "type": "MCQ_SINGLE",
+              "difficulty": "EASY",
+              "explanation": "NaN stands for Not-a-Number, but its Javascript type is \"number\".",
+              "codeTemplate": null,
+              "testCasesJson": null,
+              "options": [
+                {
+                  "id": "dbdb0f77-8f4c-4125-b6ec-00214ecbb885",
+                  "questionId": "1589675b-6969-4946-aa06-05d580ff6fdc",
+                  "text": "\"undefined\"",
+                  "isCorrect": false
+                },
+                {
+                  "id": "c1b4917d-94a4-4b0d-a069-53f0b8bd9a0e",
+                  "questionId": "1589675b-6969-4946-aa06-05d580ff6fdc",
+                  "text": "\"number\"",
+                  "isCorrect": true
+                },
+                {
+                  "id": "9000b641-c19f-49fc-9cb0-71d1951bcbbf",
+                  "questionId": "1589675b-6969-4946-aa06-05d580ff6fdc",
+                  "text": "\"nan\"",
+                  "isCorrect": false
+                },
+                {
+                  "id": "4bf5fe17-40ea-4a9d-9749-fa3c50d49fb9",
+                  "questionId": "1589675b-6969-4946-aa06-05d580ff6fdc",
+                  "text": "\"object\"",
+                  "isCorrect": false
+                }
+              ]
+            },
+            {
+              "id": "f545f266-8193-4693-b987-162195fd0c1a",
+              "sectionId": "82abdb68-5157-4383-af52-1f0b36849bf1",
+              "prompt": "Which array method returns a NEW array containing only elements that pass a test condition?",
+              "type": "MCQ_SINGLE",
+              "difficulty": "EASY",
+              "explanation": "Array.prototype.filter creates a shallow copy of filtered elements.",
+              "codeTemplate": null,
+              "testCasesJson": null,
+              "options": [
+                {
+                  "id": "c6292a99-3fb4-4bf2-919a-6a10ad74e362",
+                  "questionId": "f545f266-8193-4693-b987-162195fd0c1a",
+                  "text": "map()",
+                  "isCorrect": false
+                },
+                {
+                  "id": "3f8899ed-aa5d-40f8-9a99-9285010b336c",
+                  "questionId": "f545f266-8193-4693-b987-162195fd0c1a",
+                  "text": "forEach()",
+                  "isCorrect": false
+                },
+                {
+                  "id": "98c582ea-583d-4b9e-ad16-39e30202831b",
+                  "questionId": "f545f266-8193-4693-b987-162195fd0c1a",
+                  "text": "filter()",
+                  "isCorrect": true
+                },
+                {
+                  "id": "afe48cbc-ee03-433a-8cf5-da32916a84d6",
+                  "questionId": "f545f266-8193-4693-b987-162195fd0c1a",
+                  "text": "reduce()",
+                  "isCorrect": false
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "jobs": [
+    {
+      "id": "3ff7ed77-f581-46c8-a6e5-8c647d076d0d",
+      "title": "DevOps Engineer",
+      "experienceRange": "0–2 years",
+      "location": "Chennai / Remote",
+      "skillsRequired": "[\"Git\",\"Linux\",\"Docker\",\"Kubernetes\",\"AWS\",\"Terraform\",\"CI/CD\"]",
+      "description": "We are seeking an entry-level DevOps engineer to maintain CI/CD pipelines, manage Docker containers, and ensure cloud infrastructure reliability.",
+      "passThreshold": 70,
+      "assessmentTemplateId": "4de5d2c0-9414-45e1-9ae8-762b1f638d47",
+      "companyId": "6fdd1fd1-d81a-4603-8471-69f2ade7b240",
+      "createdAt": "2026-09-07T17:11:54.811Z"
+    },
+    {
+      "id": "eb7a7a15-8705-4e13-ab2a-0fb17acf9865",
+      "title": "Frontend React Developer",
+      "experienceRange": "1–3 years",
+      "location": "Bangalore / Remote",
+      "skillsRequired": "[\"JavaScript\",\"TypeScript\",\"React\",\"HTML5\",\"CSS3\",\"Tailwind\"]",
+      "description": "Looking for a UI developer to build slick candidate and recruiter web dashboards.",
+      "passThreshold": 75,
+      "assessmentTemplateId": "fb28995d-4765-493d-842a-019011cfaedf",
+      "companyId": "6fdd1fd1-d81a-4603-8471-69f2ade7b240",
+      "createdAt": "2026-09-07T17:11:54.816Z"
+    }
+  ],
+  "candidates": [
+    {
+      "id": "8f6c57b0-89bf-4726-a163-87e5310efd1a",
+      "name": "Arun Kumar",
+      "email": "arun.kumar@example.com",
+      "phone": "+91 98765 43210",
+      "resumeUrl": "/uploads/resumes/arun_kumar_devops.pdf",
+      "resumeFileName": "arun_kumar_devops.pdf",
+      "createdAt": "2026-09-07T17:11:54.821Z"
+    },
+    {
+      "id": "fde79cb3-a6cb-4d5e-b45b-48615c8706aa",
+      "name": "Priya Sharma",
+      "email": "priya.sharma@example.com",
+      "phone": "+91 91234 56789",
+      "resumeUrl": "/uploads/resumes/priya_sharma_resume.pdf",
+      "resumeFileName": "priya_sharma_resume.pdf",
+      "createdAt": "2026-09-07T17:11:54.858Z"
+    },
+    {
+      "id": "59d6b95f-9923-471f-915f-4174e74f9cf7",
+      "name": "David Joseph",
+      "email": "david.joseph@example.com",
+      "phone": "+91 97777 88899",
+      "resumeUrl": "/uploads/resumes/david_joseph_devops.pdf",
+      "resumeFileName": "david_joseph_devops.pdf",
+      "createdAt": "2026-09-07T17:11:54.868Z"
+    },
+    {
+      "id": "d918f9e0-16d6-49e1-9259-ae5a7a603f91",
+      "name": "Rahul Verma",
+      "email": "rahul.verma@example.com",
+      "phone": "+91 98111 22233",
+      "resumeUrl": "/uploads/resumes/rahul_verma_cv.pdf",
+      "resumeFileName": "rahul_verma_cv.pdf",
+      "createdAt": "2026-09-07T17:11:54.894Z"
+    },
+    {
+      "id": "dfe33d9d-8efd-4055-bfdf-a3693108fcb6",
+      "name": "Ananya Roy",
+      "email": "ananya.roy@example.com",
+      "phone": "+91 98450 11223",
+      "resumeUrl": "/uploads/resumes/ananya_roy_resume.pdf",
+      "resumeFileName": "ananya_roy_resume.pdf",
+      "createdAt": "2026-09-07T17:11:54.920Z"
+    },
+    {
+      "id": "91326617-16a1-4ba4-a0c2-6ee409202b46",
+      "name": "Vikram Singh",
+      "email": "vikram.singh@example.com",
+      "phone": "+91 99000 44332",
+      "resumeUrl": "/uploads/resumes/vikram_singh_resume.pdf",
+      "resumeFileName": "vikram_singh_resume.pdf",
+      "createdAt": "2026-09-07T17:11:54.930Z"
+    },
+    {
+      "id": "9aa36d97-4bf3-43da-9486-de888b4cd9d5",
+      "name": "Adhavan jvr",
+      "email": "jojoasta381@gmail.com",
+      "phone": "+919941735736",
+      "resumeUrl": "/uploads/resumes/resume-1788886523777-135572644.pdf",
+      "resumeFileName": "Adhavan_JVR (1).pdf",
+      "createdAt": "2026-09-08T08:56:43.090Z"
+    }
+  ],
+  "applications": [
+    {
+      "id": "c96a04e8-24df-4469-891e-84bce300bdca",
+      "candidateId": "8f6c57b0-89bf-4726-a163-87e5310efd1a",
+      "jobId": "3ff7ed77-f581-46c8-a6e5-8c647d076d0d",
+      "status": "HR_INTERVIEW",
+      "token": "arun-devops-token-778899",
+      "tokenExpiresAt": "2026-09-14T17:11:54.826Z",
+      "otpCode": null,
+      "isOtpVerified": true,
+      "interviewScheduledAt": "2026-09-09T18:01:00.000Z",
+      "interviewLink": "/interview/ROOM-3NU3VVC",
+      "resumeMatchScore": 92,
+      "resumeParsedSkills": "[\"Git\",\"Linux\",\"Docker\",\"Kubernetes\",\"CI/CD\"]",
+      "rankingScore": 88.6,
+      "recommendation": "STRONG_CANDIDATE",
+      "createdAt": "2026-09-07T17:11:54.827Z"
+    },
+    {
+      "id": "62428623-0e80-4e33-8d2c-7db93cb0548e",
+      "candidateId": "fde79cb3-a6cb-4d5e-b45b-48615c8706aa",
+      "jobId": "3ff7ed77-f581-46c8-a6e5-8c647d076d0d",
+      "status": "INVITED",
+      "token": "demo-test-token-priya-123456",
+      "tokenExpiresAt": "2026-09-14T17:11:54.862Z",
+      "otpCode": null,
+      "isOtpVerified": false,
+      "interviewScheduledAt": null,
+      "interviewLink": null,
+      "resumeMatchScore": 88,
+      "resumeParsedSkills": "[\"Git\",\"Linux\",\"Docker\",\"AWS\"]",
+      "rankingScore": null,
+      "recommendation": null,
+      "createdAt": "2026-09-07T17:11:54.863Z"
+    },
+    {
+      "id": "c5006cbd-0b8f-4e00-8550-0aca4853cc41",
+      "candidateId": "59d6b95f-9923-471f-915f-4174e74f9cf7",
+      "jobId": "3ff7ed77-f581-46c8-a6e5-8c647d076d0d",
+      "status": "REJECTED",
+      "token": "david-test-token-889900",
+      "tokenExpiresAt": "2026-09-14T17:11:54.873Z",
+      "otpCode": null,
+      "isOtpVerified": true,
+      "interviewScheduledAt": null,
+      "interviewLink": null,
+      "resumeMatchScore": 94,
+      "resumeParsedSkills": "[\"Git\",\"Linux\",\"Docker\",\"Kubernetes\",\"AWS\",\"Terraform\"]",
+      "rankingScore": 78.6,
+      "recommendation": "MANUAL_REVIEW",
+      "createdAt": "2026-09-07T17:11:54.873Z"
+    },
+    {
+      "id": "d06c8a9e-ca62-4278-86ad-0c0640ff206d",
+      "candidateId": "d918f9e0-16d6-49e1-9259-ae5a7a603f91",
+      "jobId": "3ff7ed77-f581-46c8-a6e5-8c647d076d0d",
+      "status": "REJECTED",
+      "token": "rahul-test-token-445566",
+      "tokenExpiresAt": "2026-09-14T17:11:54.898Z",
+      "otpCode": null,
+      "isOtpVerified": true,
+      "interviewScheduledAt": null,
+      "interviewLink": null,
+      "resumeMatchScore": 65,
+      "resumeParsedSkills": null,
+      "rankingScore": 51.5,
+      "recommendation": "REJECT",
+      "createdAt": "2026-09-07T17:11:54.899Z"
+    },
+    {
+      "id": "94b49041-852d-4adc-a61e-fc72b70e6aa4",
+      "candidateId": "dfe33d9d-8efd-4055-bfdf-a3693108fcb6",
+      "jobId": "3ff7ed77-f581-46c8-a6e5-8c647d076d0d",
+      "status": "INVITED",
+      "token": "cand-ejd0a2vdf-mtn7f6sj",
+      "tokenExpiresAt": "2026-09-14T17:11:54.924Z",
+      "otpCode": null,
+      "isOtpVerified": false,
+      "interviewScheduledAt": null,
+      "interviewLink": null,
+      "resumeMatchScore": 85,
+      "resumeParsedSkills": "[\"Git\",\"Linux\",\"Docker\",\"CI/CD\"]",
+      "rankingScore": null,
+      "recommendation": null,
+      "createdAt": "2026-09-07T17:11:54.925Z"
+    },
+    {
+      "id": "9c88e43d-dea2-4ed5-a6c4-09d4705163d2",
+      "candidateId": "91326617-16a1-4ba4-a0c2-6ee409202b46",
+      "jobId": "3ff7ed77-f581-46c8-a6e5-8c647d076d0d",
+      "status": "INVITED",
+      "token": "cand-syvu4v225-mtn7f6tl",
+      "tokenExpiresAt": "2026-09-14T17:11:54.935Z",
+      "otpCode": null,
+      "isOtpVerified": false,
+      "interviewScheduledAt": null,
+      "interviewLink": null,
+      "resumeMatchScore": 80,
+      "resumeParsedSkills": "[\"Linux\",\"Docker\",\"Kubernetes\"]",
+      "rankingScore": null,
+      "recommendation": null,
+      "createdAt": "2026-09-07T17:11:54.935Z"
+    },
+    {
+      "id": "eb6ac900-c193-455a-85d7-8194283d6da0",
+      "candidateId": "9aa36d97-4bf3-43da-9486-de888b4cd9d5",
+      "jobId": "3ff7ed77-f581-46c8-a6e5-8c647d076d0d",
+      "status": "REJECTED",
+      "token": "cand-45oejqhul-mtsfqyqq",
+      "tokenExpiresAt": "2026-09-15T08:56:43.106Z",
+      "otpCode": "123456",
+      "isOtpVerified": true,
+      "interviewScheduledAt": "2026-09-10T04:10:00.000Z",
+      "interviewLink": "https://meet.google.com/techscreen-hr-interview",
+      "resumeMatchScore": 100,
+      "resumeParsedSkills": "[\"Git\",\"Linux\",\"Docker\",\"Kubernetes\",\"AWS\",\"Terraform\",\"CI/CD\"]",
+      "rankingScore": 58.8,
+      "recommendation": "REJECT",
+      "createdAt": "2026-09-08T08:56:43.114Z"
+    },
+    {
+      "id": "ab98b5b0-9e0b-4225-a7c1-3e9e805cbd48",
+      "candidateId": "9aa36d97-4bf3-43da-9486-de888b4cd9d5",
+      "jobId": "3ff7ed77-f581-46c8-a6e5-8c647d076d0d",
+      "status": "SHORTLISTED",
+      "token": "cand-qviouf057-mtshgp0c",
+      "tokenExpiresAt": "2026-09-15T09:44:43.164Z",
+      "otpCode": null,
+      "isOtpVerified": false,
+      "interviewScheduledAt": null,
+      "interviewLink": null,
+      "resumeMatchScore": null,
+      "resumeParsedSkills": null,
+      "rankingScore": null,
+      "recommendation": null,
+      "createdAt": "2026-09-08T09:44:43.165Z"
+    },
+    {
+      "id": "5417dbfe-b527-403d-bd0c-ea9468e952bd",
+      "candidateId": "9aa36d97-4bf3-43da-9486-de888b4cd9d5",
+      "jobId": "eb7a7a15-8705-4e13-ab2a-0fb17acf9865",
+      "status": "REJECTED",
+      "token": "cand-ij3lpnf1o-mtswujs7",
+      "tokenExpiresAt": "2026-09-15T16:55:23.815Z",
+      "otpCode": null,
+      "isOtpVerified": false,
+      "interviewScheduledAt": null,
+      "interviewLink": null,
+      "resumeMatchScore": null,
+      "resumeParsedSkills": null,
+      "rankingScore": null,
+      "recommendation": null,
+      "createdAt": "2026-09-08T16:55:23.816Z"
+    }
+  ],
+  "attempts": [
+    {
+      "id": "fd748904-a891-40a9-951d-c442d699142b",
+      "applicationId": "c96a04e8-24df-4469-891e-84bce300bdca",
+      "templateId": "4de5d2c0-9414-45e1-9ae8-762b1f638d47",
+      "startedAt": "2026-09-07T16:11:54.842Z",
+      "submittedAt": "2026-09-07T16:41:54.842Z",
+      "currentQuestionIndex": 15,
+      "questionOrderJson": "[]",
+      "activeQuestionStartedAt": null,
+      "isCompleted": true,
+      "integrityScore": 95,
+      "proctoringRiskScore": 10,
+      "proctoringRiskLevel": "LOW",
+      "tabSwitchCount": 1,
+      "fullscreenViolationCount": 0,
+      "screenShareStopCount": 0,
+      "cameraDisconnectCount": 0,
+      "answers": [],
+      "result": {
+        "id": "86462556-e2c7-46ff-a035-910ff47a8e6c",
+        "attemptId": "fd748904-a891-40a9-951d-c442d699142b",
+        "totalScore": 13,
+        "maxScore": 15,
+        "percentage": 86.7,
+        "integrityScore": 95,
+        "proctoringRiskScore": 10,
+        "proctoringRiskLevel": "LOW",
+        "rankingScore": 88.6,
+        "recommendation": "STRONG_CANDIDATE",
+        "codingScore": 10,
+        "codingMaxScore": 10,
+        "sectionScoresJson": "{\"Git Version Control\":{\"score\":5,\"max\":5},\"Linux Systems Administration\":{\"score\":4,\"max\":5},\"Docker & CI/CD Pipelines\":{\"score\":4,\"max\":5},\"Practical Scripting & Logic\":{\"score\":10,\"max\":10}}",
+        "isPassed": true,
+        "evaluatedAt": "2026-09-07T17:11:54.853Z"
+      },
+      "proctoringLogs": [
+        {
+          "id": "77cdffba-c58b-4920-a3fc-8234410750ce",
+          "attemptId": "fd748904-a891-40a9-951d-c442d699142b",
+          "eventType": "FOCUS_LOST",
+          "details": "Browser window tab focus lost for 4 seconds.",
+          "timestamp": "2026-09-07T16:31:54.847Z"
+        }
+      ]
+    },
+    {
+      "id": "88fdaa93-ead8-48ee-8720-9a8cad177874",
+      "applicationId": "c5006cbd-0b8f-4e00-8550-0aca4853cc41",
+      "templateId": "4de5d2c0-9414-45e1-9ae8-762b1f638d47",
+      "startedAt": "2026-09-07T15:41:54.878Z",
+      "submittedAt": "2026-09-07T16:11:54.878Z",
+      "currentQuestionIndex": 15,
+      "questionOrderJson": "[]",
+      "activeQuestionStartedAt": null,
+      "isCompleted": true,
+      "integrityScore": 22,
+      "proctoringRiskScore": 78,
+      "proctoringRiskLevel": "HIGH",
+      "tabSwitchCount": 5,
+      "fullscreenViolationCount": 2,
+      "screenShareStopCount": 1,
+      "cameraDisconnectCount": 0,
+      "answers": [],
+      "result": {
+        "id": "8fbbc38c-db56-4b42-a9d4-98441fd4a13c",
+        "attemptId": "88fdaa93-ead8-48ee-8720-9a8cad177874",
+        "totalScore": 12,
+        "maxScore": 15,
+        "percentage": 84,
+        "integrityScore": 22,
+        "proctoringRiskScore": 78,
+        "proctoringRiskLevel": "HIGH",
+        "rankingScore": 78.6,
+        "recommendation": "MANUAL_REVIEW",
+        "codingScore": 0,
+        "codingMaxScore": 0,
+        "sectionScoresJson": "{\"Git Version Control\":{\"score\":4,\"max\":5},\"Linux Systems Administration\":{\"score\":4,\"max\":5},\"Docker & CI/CD Pipelines\":{\"score\":4,\"max\":5}}",
+        "isPassed": true,
+        "evaluatedAt": "2026-09-07T17:11:54.889Z"
+      },
+      "proctoringLogs": [
+        {
+          "id": "bfa425fe-f220-40c3-af46-1edcaa2cdb3d",
+          "attemptId": "88fdaa93-ead8-48ee-8720-9a8cad177874",
+          "eventType": "FOCUS_LOST",
+          "details": "Browser tab switched away (duration 18s)",
+          "timestamp": "2026-09-07T15:48:34.883Z"
+        },
+        {
+          "id": "657b5264-f2b0-45c9-b18d-ca9e506bdd78",
+          "attemptId": "88fdaa93-ead8-48ee-8720-9a8cad177874",
+          "eventType": "FOCUS_LOST",
+          "details": "Browser tab switched away (duration 24s)",
+          "timestamp": "2026-09-07T15:53:34.883Z"
+        },
+        {
+          "id": "b30bbc7a-6b71-467e-8da5-5f42dccee873",
+          "attemptId": "88fdaa93-ead8-48ee-8720-9a8cad177874",
+          "eventType": "FULLSCREEN_EXIT",
+          "details": "Candidate exited fullscreen mode",
+          "timestamp": "2026-09-07T15:56:54.883Z"
+        },
+        {
+          "id": "e0362a53-1b46-4196-8625-10405c1be481",
+          "attemptId": "88fdaa93-ead8-48ee-8720-9a8cad177874",
+          "eventType": "SCREEN_SHARE_STOPPED",
+          "details": "Screen sharing stream was halted by candidate",
+          "timestamp": "2026-09-07T16:01:54.883Z"
+        },
+        {
+          "id": "874c3866-07fe-4e75-b928-63c10b1c9e19",
+          "attemptId": "88fdaa93-ead8-48ee-8720-9a8cad177874",
+          "eventType": "FOCUS_LOST",
+          "details": "Window blur event recorded",
+          "timestamp": "2026-09-07T16:05:14.883Z"
+        },
+        {
+          "id": "7583c36d-5654-403f-814b-ffd4b3e7d482",
+          "attemptId": "88fdaa93-ead8-48ee-8720-9a8cad177874",
+          "eventType": "FULLSCREEN_EXIT",
+          "details": "Candidate exited fullscreen mode again",
+          "timestamp": "2026-09-07T16:08:34.883Z"
+        }
+      ]
+    },
+    {
+      "id": "00329423-954b-47f2-836b-8b050fa9bb05",
+      "applicationId": "d06c8a9e-ca62-4278-86ad-0c0640ff206d",
+      "templateId": "4de5d2c0-9414-45e1-9ae8-762b1f638d47",
+      "startedAt": "2026-09-07T15:11:54.904Z",
+      "submittedAt": "2026-09-07T15:41:54.904Z",
+      "currentQuestionIndex": 15,
+      "questionOrderJson": "[]",
+      "activeQuestionStartedAt": null,
+      "isCompleted": true,
+      "integrityScore": 60,
+      "proctoringRiskScore": 40,
+      "proctoringRiskLevel": "MEDIUM",
+      "tabSwitchCount": 4,
+      "fullscreenViolationCount": 2,
+      "screenShareStopCount": 0,
+      "cameraDisconnectCount": 0,
+      "answers": [],
+      "result": {
+        "id": "a3a93588-b78b-44c2-b61c-6beda36d7df0",
+        "attemptId": "00329423-954b-47f2-836b-8b050fa9bb05",
+        "totalScore": 8,
+        "maxScore": 15,
+        "percentage": 53.3,
+        "integrityScore": 60,
+        "proctoringRiskScore": 40,
+        "proctoringRiskLevel": "MEDIUM",
+        "rankingScore": 51.5,
+        "recommendation": "REJECT",
+        "codingScore": 0,
+        "codingMaxScore": 0,
+        "sectionScoresJson": "{\"Git Version Control\":{\"score\":3,\"max\":5},\"Linux Systems Administration\":{\"score\":3,\"max\":5},\"Docker & CI/CD Pipelines\":{\"score\":2,\"max\":5}}",
+        "isPassed": false,
+        "evaluatedAt": "2026-09-07T17:11:54.915Z"
+      },
+      "proctoringLogs": [
+        {
+          "id": "5f8a6962-7bad-4a38-8b61-8bc402be2f29",
+          "attemptId": "00329423-954b-47f2-836b-8b050fa9bb05",
+          "eventType": "FOCUS_LOST",
+          "details": "Browser tab switched away (duration 12s)",
+          "timestamp": "2026-09-07T15:18:34.909Z"
+        },
+        {
+          "id": "83b748ac-4abe-431d-a5fa-78cec362ee97",
+          "attemptId": "00329423-954b-47f2-836b-8b050fa9bb05",
+          "eventType": "FULLSCREEN_EXIT",
+          "details": "Candidate exited fullscreen mode",
+          "timestamp": "2026-09-07T15:23:34.909Z"
+        },
+        {
+          "id": "47f0b841-d553-42fa-86e1-a712f57558df",
+          "attemptId": "00329423-954b-47f2-836b-8b050fa9bb05",
+          "eventType": "COPY_PASTE",
+          "details": "Attempted right-click / paste inside question body",
+          "timestamp": "2026-09-07T15:30:14.909Z"
+        },
+        {
+          "id": "8ff7a77c-26f9-4127-a50e-f2aa2e9f0f1d",
+          "attemptId": "00329423-954b-47f2-836b-8b050fa9bb05",
+          "eventType": "FOCUS_LOST",
+          "details": "Window focus lost (duration 45s)",
+          "timestamp": "2026-09-07T15:35:14.909Z"
+        }
+      ]
+    },
+    {
+      "id": "c97b2e00-ed18-4200-a547-3856a371d549",
+      "applicationId": "eb6ac900-c193-455a-85d7-8194283d6da0",
+      "templateId": "4de5d2c0-9414-45e1-9ae8-762b1f638d47",
+      "startedAt": "2026-09-08T09:00:49.960Z",
+      "submittedAt": "2026-09-08T09:01:27.602Z",
+      "currentQuestionIndex": 16,
+      "questionOrderJson": "[\"d1824fa9-28dc-4416-a1d4-2ed1ea64a4e4\",\"dac03b99-6eb4-4608-b58f-bdfccb1229b9\",\"8beb7b14-7fee-4670-b3c8-6f6b69f36d02\",\"df328ce0-fa77-495a-9dbb-e477f995812a\",\"5a6576a0-9b78-4a88-b3ce-163724cb3012\",\"3b28b8ca-c5f3-46b6-8473-f4a12fe0f338\",\"d9ffc5f9-2ec2-4c86-9ef9-0734e6c12d2f\",\"843f3787-a2c5-4cc4-b341-e1892c069682\",\"8fb4d6c9-225b-4004-9849-1b6159bf6dfa\",\"8e7b7438-b03c-425c-a4f5-caae897117ac\",\"ed6fade0-0f85-444c-bf12-dc59b0de1947\",\"33ecf65b-57bb-4739-a47c-d901b20d6b72\",\"5ae8ad46-6799-4066-8c48-37bc96c6b8ba\",\"3a732e13-833f-4bd1-babc-078ce955bda1\",\"d126b2b8-fce6-4014-87ff-089a4540fb02\",\"64754658-13b7-4d06-8545-929d4b7ea79b\"]",
+      "activeQuestionStartedAt": null,
+      "isCompleted": true,
+      "integrityScore": 100,
+      "proctoringRiskScore": 0,
+      "proctoringRiskLevel": "LOW",
+      "tabSwitchCount": 0,
+      "fullscreenViolationCount": 0,
+      "screenShareStopCount": 0,
+      "cameraDisconnectCount": 0,
+      "answers": [
+        {
+          "id": "ddbc6a9e-9a15-419d-8059-25fb76257488",
+          "attemptId": "c97b2e00-ed18-4200-a547-3856a371d549",
+          "questionId": "d1824fa9-28dc-4416-a1d4-2ed1ea64a4e4",
+          "selectedOptionIdsJson": "[\"151794eb-1a58-42bc-97c5-0ab40e182fb0\"]",
+          "codeAnswer": null,
+          "answeredAt": "2026-09-08T09:01:00.337Z",
+          "timeSpentSeconds": 10
+        },
+        {
+          "id": "324575b3-8464-487a-baa7-34423aaf822e",
+          "attemptId": "c97b2e00-ed18-4200-a547-3856a371d549",
+          "questionId": "dac03b99-6eb4-4608-b58f-bdfccb1229b9",
+          "selectedOptionIdsJson": "[\"0aad9849-0a77-400e-a4d4-2eb6e4a56222\"]",
+          "codeAnswer": null,
+          "answeredAt": "2026-09-08T09:01:03.774Z",
+          "timeSpentSeconds": 3
+        },
+        {
+          "id": "0b56132a-5e76-4063-bba4-ccab1be2acf4",
+          "attemptId": "c97b2e00-ed18-4200-a547-3856a371d549",
+          "questionId": "8beb7b14-7fee-4670-b3c8-6f6b69f36d02",
+          "selectedOptionIdsJson": "[\"9b2a3d03-80c0-471d-8b4f-53444c89f306\"]",
+          "codeAnswer": null,
+          "answeredAt": "2026-09-08T09:01:05.838Z",
+          "timeSpentSeconds": 1
+        },
+        {
+          "id": "c61883ab-54d6-4b25-93d2-4541711ab3c0",
+          "attemptId": "c97b2e00-ed18-4200-a547-3856a371d549",
+          "questionId": "df328ce0-fa77-495a-9dbb-e477f995812a",
+          "selectedOptionIdsJson": "[]",
+          "codeAnswer": null,
+          "answeredAt": "2026-09-08T09:01:07.246Z",
+          "timeSpentSeconds": 1
+        },
+        {
+          "id": "b77c3cd8-d9d7-445c-84e5-c6b469f35ba4",
+          "attemptId": "c97b2e00-ed18-4200-a547-3856a371d549",
+          "questionId": "5a6576a0-9b78-4a88-b3ce-163724cb3012",
+          "selectedOptionIdsJson": "[\"1d21f5ca-6648-4e22-b560-366575fe82b0\"]",
+          "codeAnswer": null,
+          "answeredAt": "2026-09-08T09:01:08.584Z",
+          "timeSpentSeconds": 1
+        },
+        {
+          "id": "71faaeac-1c1b-4f87-b3e7-1f89816f67ff",
+          "attemptId": "c97b2e00-ed18-4200-a547-3856a371d549",
+          "questionId": "3b28b8ca-c5f3-46b6-8473-f4a12fe0f338",
+          "selectedOptionIdsJson": "[\"245a4a6c-9fca-47f2-a176-d2add4c538da\"]",
+          "codeAnswer": null,
+          "answeredAt": "2026-09-08T09:01:09.883Z",
+          "timeSpentSeconds": 1
+        },
+        {
+          "id": "3926c7cf-e8e8-4127-8971-d985af635103",
+          "attemptId": "c97b2e00-ed18-4200-a547-3856a371d549",
+          "questionId": "d9ffc5f9-2ec2-4c86-9ef9-0734e6c12d2f",
+          "selectedOptionIdsJson": "[\"c3736c1b-2cca-4de1-9eba-f92fecf4a273\"]",
+          "codeAnswer": null,
+          "answeredAt": "2026-09-08T09:01:11.056Z",
+          "timeSpentSeconds": 1
+        },
+        {
+          "id": "323c4ee8-4d8b-4529-bf84-9ec517ded8e7",
+          "attemptId": "c97b2e00-ed18-4200-a547-3856a371d549",
+          "questionId": "843f3787-a2c5-4cc4-b341-e1892c069682",
+          "selectedOptionIdsJson": "[\"50c8ec46-b007-46aa-95a1-081c148f1af7\"]",
+          "codeAnswer": null,
+          "answeredAt": "2026-09-08T09:01:12.859Z",
+          "timeSpentSeconds": 1
+        },
+        {
+          "id": "02a70623-cccf-4a53-852d-695399e2d572",
+          "attemptId": "c97b2e00-ed18-4200-a547-3856a371d549",
+          "questionId": "8fb4d6c9-225b-4004-9849-1b6159bf6dfa",
+          "selectedOptionIdsJson": "[\"ec2e5207-e245-4028-a3c3-39a338577f2d\"]",
+          "codeAnswer": null,
+          "answeredAt": "2026-09-08T09:01:13.954Z",
+          "timeSpentSeconds": 1
+        },
+        {
+          "id": "58ed4a8c-9766-4707-9112-ab1c0ac444cf",
+          "attemptId": "c97b2e00-ed18-4200-a547-3856a371d549",
+          "questionId": "8e7b7438-b03c-425c-a4f5-caae897117ac",
+          "selectedOptionIdsJson": "[\"b1309ec1-98fb-48e0-bc19-2f9e544860b7\"]",
+          "codeAnswer": null,
+          "answeredAt": "2026-09-08T09:01:15.199Z",
+          "timeSpentSeconds": 1
+        },
+        {
+          "id": "945c75e8-e52d-4b11-87cb-ac0cf55c6c3e",
+          "attemptId": "c97b2e00-ed18-4200-a547-3856a371d549",
+          "questionId": "ed6fade0-0f85-444c-bf12-dc59b0de1947",
+          "selectedOptionIdsJson": "[\"b6ac1140-2748-4234-b6d3-29b6eda5ea57\"]",
+          "codeAnswer": null,
+          "answeredAt": "2026-09-08T09:01:19.743Z",
+          "timeSpentSeconds": 1
+        },
+        {
+          "id": "720427ee-31d1-4597-a08b-54c5f032b505",
+          "attemptId": "c97b2e00-ed18-4200-a547-3856a371d549",
+          "questionId": "33ecf65b-57bb-4739-a47c-d901b20d6b72",
+          "selectedOptionIdsJson": "[\"42bf29ed-b085-45a0-9fa7-7e8f28e2a1da\"]",
+          "codeAnswer": null,
+          "answeredAt": "2026-09-08T09:01:21.594Z",
+          "timeSpentSeconds": 1
+        },
+        {
+          "id": "e0ea62b4-7418-45e8-849a-1358f787f658",
+          "attemptId": "c97b2e00-ed18-4200-a547-3856a371d549",
+          "questionId": "5ae8ad46-6799-4066-8c48-37bc96c6b8ba",
+          "selectedOptionIdsJson": "[\"098202c5-687d-452a-9e33-fa2d0a7945a7\"]",
+          "codeAnswer": null,
+          "answeredAt": "2026-09-08T09:01:23.187Z",
+          "timeSpentSeconds": 1
+        },
+        {
+          "id": "d7bacd44-3663-4f2f-a808-2d06cbb4c2d8",
+          "attemptId": "c97b2e00-ed18-4200-a547-3856a371d549",
+          "questionId": "3a732e13-833f-4bd1-babc-078ce955bda1",
+          "selectedOptionIdsJson": "[\"c87e41f8-d4f9-470c-97b1-06c07e9fd691\"]",
+          "codeAnswer": null,
+          "answeredAt": "2026-09-08T09:01:24.359Z",
+          "timeSpentSeconds": 1
+        },
+        {
+          "id": "5a47aa4d-a45d-4098-a7eb-066401cd8a6a",
+          "attemptId": "c97b2e00-ed18-4200-a547-3856a371d549",
+          "questionId": "d126b2b8-fce6-4014-87ff-089a4540fb02",
+          "selectedOptionIdsJson": "[\"7b2aa4c8-7b12-4697-a313-e892420d0234\"]",
+          "codeAnswer": null,
+          "answeredAt": "2026-09-08T09:01:25.476Z",
+          "timeSpentSeconds": 1
+        },
+        {
+          "id": "0b743ccd-ce85-4cee-b341-fcbf2e0c75b3",
+          "attemptId": "c97b2e00-ed18-4200-a547-3856a371d549",
+          "questionId": "64754658-13b7-4d06-8545-929d4b7ea79b",
+          "selectedOptionIdsJson": "[]",
+          "codeAnswer": "function solution(arr) {\n  // Write your code here\n  return arr.filter(x => x > 0).reduce((a, b) => a + b, 0);\n}",
+          "answeredAt": "2026-09-08T09:01:27.541Z",
+          "timeSpentSeconds": 1
+        }
+      ],
+      "result": {
+        "id": "1795e3bd-a8b7-4576-9d6c-e7a470a7d01a",
+        "attemptId": "c97b2e00-ed18-4200-a547-3856a371d549",
+        "totalScore": 12,
+        "maxScore": 25,
+        "percentage": 48,
+        "integrityScore": 100,
+        "proctoringRiskScore": 0,
+        "proctoringRiskLevel": "LOW",
+        "rankingScore": 28.8,
+        "recommendation": "REJECT",
+        "codingScore": 10,
+        "codingMaxScore": 10,
+        "sectionScoresJson": "{\"Docker & CI/CD Pipelines\":{\"score\":1,\"max\":5},\"Linux Systems Administration\":{\"score\":1,\"max\":5},\"Git Version Control\":{\"score\":0,\"max\":5},\"Practical Scripting & Logic\":{\"score\":10,\"max\":10}}",
+        "isPassed": false,
+        "evaluatedAt": "2026-09-08T09:01:27.594Z"
+      },
+      "proctoringLogs": []
+    }
+  ],
+  "recruiterNotes": [],
+  "badges": [],
+  "interviewSessions": [
+    {
+      "id": "f43a9c8e-eeac-49d6-a281-8df903a6096a",
+      "applicationId": "c96a04e8-24df-4469-891e-84bce300bdca",
+      "roomToken": "ROOM-3NU3VVC",
+      "interviewerName": "Technical Lead",
+      "status": "IN_PROGRESS",
+      "codeBuffer": "/**\n * Live Technical Interview Session\n * Candidate: Arun Kumar\n * Role: DevOps Engineer\n */\n\nfunction solution(input) {\n  // Collaborate on live code here\n  console.log(\"Hello from live sandbox!\");\n  return true;\n}\n\n// Run solution\nsolution();\n",
+      "sharedNotes": "Live Interview Notes for Arun Kumar:\n- Architectural design discussion\n- Live coding exercise",
+      "interviewerRating": null,
+      "feedbackSummary": null,
+      "scheduledAt": "2026-09-07T17:59:12.911Z",
+      "updatedAt": "2026-09-07T17:59:12.911Z"
+    }
+  ],
+  "emailLogs": [
+    {
+      "id": "52e20f54-8e19-4503-88b9-714ebd41eea8",
+      "recipientEmail": "arun.kumar@example.com",
+      "subject": "Update regarding your application for DevOps Engineer",
+      "type": "REJECTION",
+      "content": "Hello Arun Kumar,\n\nThank you for taking the time to participate in our technical screening assessment for the DevOps Engineer position.\n\nAfter careful review of your assessment results alongside our current hiring requirements, we will not be proceeding with your application at this stage.\n\nWe truly appreciate the time and effort you dedicated to completing the assessment and wish you the best in your career journey.\n\nSincerely,\nThe Hiring Team",
+      "status": "DELIVERED",
+      "transport": "SIMULATION",
+      "previewUrl": null,
+      "errorMessage": null,
+      "sentAt": "2026-09-07T17:57:48.388Z"
+    },
+    {
+      "id": "33087b2a-0ec8-4fca-a882-f4cee12afd4a",
+      "recipientEmail": "arun.kumar@example.com",
+      "subject": "Update regarding your application for DevOps Engineer",
+      "type": "REJECTION",
+      "content": "Hello Arun Kumar,\n\nThank you for taking the time to participate in our technical screening assessment for the DevOps Engineer position.\n\nAfter careful review of your assessment results alongside our current hiring requirements, we will not be proceeding with your application at this stage.\n\nWe truly appreciate the time and effort you dedicated to completing the assessment and wish you the best in your career journey.\n\nSincerely,\nThe Hiring Team",
+      "status": "DELIVERED",
+      "transport": "SIMULATION",
+      "previewUrl": null,
+      "errorMessage": null,
+      "sentAt": "2026-09-07T17:57:50.773Z"
+    },
+    {
+      "id": "d23d3fbe-278d-426c-8356-b1d36fff743c",
+      "recipientEmail": "arun.kumar@example.com",
+      "subject": "Update regarding your application for DevOps Engineer",
+      "type": "REJECTION",
+      "content": "Hello Arun Kumar,\n\nThank you for taking the time to participate in our technical screening assessment for the DevOps Engineer position.\n\nAfter careful review of your assessment results alongside our current hiring requirements, we will not be proceeding with your application at this stage.\n\nWe truly appreciate the time and effort you dedicated to completing the assessment and wish you the best in your career journey.\n\nSincerely,\nThe Hiring Team",
+      "status": "DELIVERED",
+      "transport": "SIMULATION",
+      "previewUrl": null,
+      "errorMessage": null,
+      "sentAt": "2026-09-07T17:57:51.353Z"
+    },
+    {
+      "id": "87eab821-65fd-4655-bdae-a0b8f38a1bcd",
+      "recipientEmail": "arun.kumar@example.com",
+      "subject": "Update regarding your application for DevOps Engineer",
+      "type": "REJECTION",
+      "content": "Hello Arun Kumar,\n\nThank you for taking the time to participate in our technical screening assessment for the DevOps Engineer position.\n\nAfter careful review of your assessment results alongside our current hiring requirements, we will not be proceeding with your application at this stage.\n\nWe truly appreciate the time and effort you dedicated to completing the assessment and wish you the best in your career journey.\n\nSincerely,\nThe Hiring Team",
+      "status": "DELIVERED",
+      "transport": "SIMULATION",
+      "previewUrl": null,
+      "errorMessage": null,
+      "sentAt": "2026-09-07T17:57:51.553Z"
+    },
+    {
+      "id": "81b67800-c45b-4ea3-bf92-26ba27b53dcb",
+      "recipientEmail": "arun.kumar@example.com",
+      "subject": "Update regarding your application for DevOps Engineer",
+      "type": "REJECTION",
+      "content": "Hello Arun Kumar,\n\nThank you for taking the time to participate in our technical screening assessment for the DevOps Engineer position.\n\nAfter careful review of your assessment results alongside our current hiring requirements, we will not be proceeding with your application at this stage.\n\nWe truly appreciate the time and effort you dedicated to completing the assessment and wish you the best in your career journey.\n\nSincerely,\nThe Hiring Team",
+      "status": "DELIVERED",
+      "transport": "SIMULATION",
+      "previewUrl": null,
+      "errorMessage": null,
+      "sentAt": "2026-09-07T17:57:51.994Z"
+    },
+    {
+      "id": "b8d4663a-db0c-4b0d-ae07-cf6972682658",
+      "recipientEmail": "arun.kumar@example.com",
+      "subject": "Update regarding your application for DevOps Engineer",
+      "type": "REJECTION",
+      "content": "Hello Arun Kumar,\n\nThank you for taking the time to participate in our technical screening assessment for the DevOps Engineer position.\n\nAfter careful review of your assessment results alongside our current hiring requirements, we will not be proceeding with your application at this stage.\n\nWe truly appreciate the time and effort you dedicated to completing the assessment and wish you the best in your career journey.\n\nSincerely,\nThe Hiring Team",
+      "status": "DELIVERED",
+      "transport": "SIMULATION",
+      "previewUrl": null,
+      "errorMessage": null,
+      "sentAt": "2026-09-07T17:57:52.168Z"
+    },
+    {
+      "id": "41ffd68e-a645-4cad-afe9-3fcde82026c4",
+      "recipientEmail": "arun.kumar@example.com",
+      "subject": "Update regarding your application for DevOps Engineer",
+      "type": "REJECTION",
+      "content": "Hello Arun Kumar,\n\nThank you for taking the time to participate in our technical screening assessment for the DevOps Engineer position.\n\nAfter careful review of your assessment results alongside our current hiring requirements, we will not be proceeding with your application at this stage.\n\nWe truly appreciate the time and effort you dedicated to completing the assessment and wish you the best in your career journey.\n\nSincerely,\nThe Hiring Team",
+      "status": "DELIVERED",
+      "transport": "SIMULATION",
+      "previewUrl": null,
+      "errorMessage": null,
+      "sentAt": "2026-09-07T17:57:52.432Z"
+    },
+    {
+      "id": "45b68c95-beb8-4fdb-bae8-76e1ba9f9ba2",
+      "recipientEmail": "arun.kumar@example.com",
+      "subject": "Update regarding your application for DevOps Engineer",
+      "type": "REJECTION",
+      "content": "Hello Arun Kumar,\n\nThank you for taking the time to participate in our technical screening assessment for the DevOps Engineer position.\n\nAfter careful review of your assessment results alongside our current hiring requirements, we will not be proceeding with your application at this stage.\n\nWe truly appreciate the time and effort you dedicated to completing the assessment and wish you the best in your career journey.\n\nSincerely,\nThe Hiring Team",
+      "status": "DELIVERED",
+      "transport": "SIMULATION",
+      "previewUrl": null,
+      "errorMessage": null,
+      "sentAt": "2026-09-07T17:57:53.113Z"
+    },
+    {
+      "id": "c11b6386-0838-4ede-96d3-9d56690676bc",
+      "recipientEmail": "arun.kumar@example.com",
+      "subject": "Update regarding your application for DevOps Engineer",
+      "type": "REJECTION",
+      "content": "Hello Arun Kumar,\n\nThank you for taking the time to participate in our technical screening assessment for the DevOps Engineer position.\n\nAfter careful review of your assessment results alongside our current hiring requirements, we will not be proceeding with your application at this stage.\n\nWe truly appreciate the time and effort you dedicated to completing the assessment and wish you the best in your career journey.\n\nSincerely,\nThe Hiring Team",
+      "status": "DELIVERED",
+      "transport": "SIMULATION",
+      "previewUrl": null,
+      "errorMessage": null,
+      "sentAt": "2026-09-07T17:58:28.368Z"
+    },
+    {
+      "id": "35764bca-99ef-4bb9-93ae-e4f9d7110d75",
+      "recipientEmail": "arun.kumar@example.com",
+      "subject": "Update regarding your application for DevOps Engineer",
+      "type": "REJECTION",
+      "content": "Hello Arun Kumar,\n\nThank you for taking the time to participate in our technical screening assessment for the DevOps Engineer position.\n\nAfter careful review of your assessment results alongside our current hiring requirements, we will not be proceeding with your application at this stage.\n\nWe truly appreciate the time and effort you dedicated to completing the assessment and wish you the best in your career journey.\n\nSincerely,\nThe Hiring Team",
+      "status": "DELIVERED",
+      "transport": "SIMULATION",
+      "previewUrl": null,
+      "errorMessage": null,
+      "sentAt": "2026-09-07T17:58:29.014Z"
+    },
+    {
+      "id": "a28f304d-4c80-4ef7-925a-8b5eb89f56eb",
+      "recipientEmail": "arun.kumar@example.com",
+      "subject": "Update regarding your application for DevOps Engineer",
+      "type": "REJECTION",
+      "content": "Hello Arun Kumar,\n\nThank you for taking the time to participate in our technical screening assessment for the DevOps Engineer position.\n\nAfter careful review of your assessment results alongside our current hiring requirements, we will not be proceeding with your application at this stage.\n\nWe truly appreciate the time and effort you dedicated to completing the assessment and wish you the best in your career journey.\n\nSincerely,\nThe Hiring Team",
+      "status": "DELIVERED",
+      "transport": "SIMULATION",
+      "previewUrl": null,
+      "errorMessage": null,
+      "sentAt": "2026-09-07T17:58:29.195Z"
+    },
+    {
+      "id": "da8a184a-e77a-4bf6-babf-25a5d486831f",
+      "recipientEmail": "arun.kumar@example.com",
+      "subject": "Update regarding your application for DevOps Engineer",
+      "type": "REJECTION",
+      "content": "Hello Arun Kumar,\n\nThank you for taking the time to participate in our technical screening assessment for the DevOps Engineer position.\n\nAfter careful review of your assessment results alongside our current hiring requirements, we will not be proceeding with your application at this stage.\n\nWe truly appreciate the time and effort you dedicated to completing the assessment and wish you the best in your career journey.\n\nSincerely,\nThe Hiring Team",
+      "status": "DELIVERED",
+      "transport": "SIMULATION",
+      "previewUrl": null,
+      "errorMessage": null,
+      "sentAt": "2026-09-07T17:58:29.404Z"
+    },
+    {
+      "id": "9cd27711-bd74-4bdd-8092-9beeee31c5c5",
+      "recipientEmail": "arun.kumar@example.com",
+      "subject": "Update regarding your application for DevOps Engineer",
+      "type": "REJECTION",
+      "content": "Hello Arun Kumar,\n\nThank you for taking the time to participate in our technical screening assessment for the DevOps Engineer position.\n\nAfter careful review of your assessment results alongside our current hiring requirements, we will not be proceeding with your application at this stage.\n\nWe truly appreciate the time and effort you dedicated to completing the assessment and wish you the best in your career journey.\n\nSincerely,\nThe Hiring Team",
+      "status": "DELIVERED",
+      "transport": "SIMULATION",
+      "previewUrl": null,
+      "errorMessage": null,
+      "sentAt": "2026-09-07T17:58:29.621Z"
+    },
+    {
+      "id": "71c62ec7-8d49-43d6-abf6-0a6893f4cbc3",
+      "recipientEmail": "arun.kumar@example.com",
+      "subject": "HR Interview Invitation - DevOps Engineer",
+      "type": "INVITATION",
+      "content": "Hi Arun Kumar,\n\nCongratulations! Based on your technical assessment score, you have been shortlisted for an HR Interview for the position of DevOps Engineer.\n\nScheduled Date/Time: 9/9/2026, 11:31:00 PM\nMeeting Link: https://meet.google.com/techscreen-hr-interview\n\nBest regards,\nTechScreen Pro Hiring Team",
+      "status": "DELIVERED",
+      "transport": "SIMULATION",
+      "previewUrl": null,
+      "errorMessage": null,
+      "sentAt": "2026-09-07T17:58:44.160Z"
+    },
+    {
+      "id": "b076c32a-d80e-454a-8d8b-2cf84a4f52e3",
+      "recipientEmail": "jojoasta381@gmail.com",
+      "subject": "Technical Assessment Invitation – DevOps Engineer",
+      "type": "INVITATION",
+      "content": "Hello Adhavan jvr,\n\nThank you for applying for the DevOps Engineer position at our company.\n\nYou have been shortlisted for the technical assessment phase.\n\nAssessment Details:\n• Role: DevOps Engineer\n• Questions: Role-Specific Technical MCQs (60 seconds per question)\n• Proctoring: Browser System Check Required (Camera, Mic, Screen Share)\n\nPlease click the secure link below to verify your email and begin your assessment:\nhttp://localhost:3000/assessment/cand-45oejqhul-mtsfqyqq\n\nImportant: This secure link is unique to you and time-limited.\n\nBest regards,\nHiring Team",
+      "status": "DELIVERED",
+      "transport": "SIMULATION",
+      "previewUrl": null,
+      "errorMessage": null,
+      "sentAt": "2026-09-08T08:56:43.124Z"
+    },
+    {
+      "id": "67c6201b-2f93-4d71-8bf7-aff20a447226",
+      "recipientEmail": "jojoasta381@gmail.com",
+      "subject": "HR Interview Invitation - DevOps Engineer",
+      "type": "INVITATION",
+      "content": "Hi Adhavan jvr,\n\nCongratulations! Based on your technical assessment score, you have been shortlisted for an HR Interview for the position of DevOps Engineer.\n\nScheduled Date/Time: 9/10/2026, 9:40:00 AM\nMeeting Link: https://meet.google.com/techscreen-hr-interview\n\nBest regards,\nTechScreen Pro Hiring Team",
+      "status": "DELIVERED",
+      "transport": "SIMULATION",
+      "previewUrl": null,
+      "errorMessage": null,
+      "sentAt": "2026-09-08T09:04:14.272Z"
+    },
+    {
+      "id": "0c27fa41-1761-4809-827d-175885d0781c",
+      "recipientEmail": "jojoasta381@gmail.com",
+      "subject": "TechScreen Pro – SMTP Configuration Test Delivery",
+      "type": "SYSTEM",
+      "content": "Congratulations!\n\nYour SMTP / Gmail mail transport is properly configured and successfully communicating with external mail servers.\n\nDelivered to: jojoasta381@gmail.com\nTimestamp: 2026-09-08T09:36:37.166Z\n\nAll technical assessment invitations, 6-digit verification passcodes, and recruiter alerts will now be dispatched live to their respective inboxes.",
+      "status": "SIMULATED",
+      "transport": "ETHEREAL",
+      "previewUrl": "https://ethereal.email/message/ap.XJapIpkHSHkp7ap.XKd4vWvYlxk7uAAAAAfMeR8PwtbKspMG1a9SvCy0",
+      "errorMessage": null,
+      "sentAt": "2026-09-08T09:36:41.485Z"
+    },
+    {
+      "id": "b73a4f74-3704-45a9-9790-0a3f80fd9f87",
+      "recipientEmail": "jojoasta381@gmail.com",
+      "subject": "Your Verification Passcode: 123456 – TechScreen Assessment",
+      "type": "OTP_VERIFICATION",
+      "content": "Hello Adhavan jvr,\n\nHere is your 6-digit access passkey to unlock your technical screening assessment for DevOps Engineer:\n\nAccess Passcode: 123456\n\nPlease enter this 6-digit code on the verification screen to begin. This passcode is unique to your session and expires shortly.\n\nPasscode: 123456\nAssessment URL: http://localhost:3000/assessment/cand-45oejqhul-mtsfqyqq",
+      "status": "SIMULATED",
+      "transport": "ETHEREAL",
+      "previewUrl": "https://ethereal.email/message/ap.XJapIpkHSHkp7ap.XUYIuM2RB1JzOAAAAAo3pWXPsNpn8BLOOFhSI2AM",
+      "errorMessage": null,
+      "sentAt": "2026-09-08T09:37:22.049Z"
+    },
+    {
+      "id": "dfb5feaf-9a6d-49b4-b381-4f4894e6b459",
+      "recipientEmail": "jojoasta381@gmail.com",
+      "subject": "Technical Assessment Invitation – DevOps Engineer",
+      "type": "INVITATION",
+      "content": "Hello Adhavan jvr,\n\nThank you for applying for the DevOps Engineer position.\n\nYou have been shortlisted for our automated first-round technical assessment.\n\nAssessment Overview:\n• Position: DevOps Engineer\n• Format: 60-Second Rapid Assessment per Question\n• Proctoring: Camera, Microphone, and Screen Share Permissions Required\n• Duration: ~15 to 30 minutes\n\nPlease click the button below to verify your email and access your secure assessment room:\n\nStart URL: http://localhost:3000/assessment/cand-45oejqhul-mtsfqyqq",
+      "status": "SIMULATED",
+      "transport": "ETHEREAL",
+      "previewUrl": "https://ethereal.email/message/ap.XJapIpkHSHkp7ap.XaGNZ89.4zJtiAAAAA7TuIdO3YKr8jDCIphL2I4E",
+      "errorMessage": null,
+      "sentAt": "2026-09-08T09:37:44.973Z"
+    },
+    {
+      "id": "2e9c792f-bcb5-443f-956d-32a5a2151603",
+      "recipientEmail": "jojoasta381@gmail.com",
+      "subject": "Technical Assessment Invitation – DevOps Engineer",
+      "type": "INVITATION",
+      "content": "Hello Adhavan jvr,\n\nThank you for applying for the DevOps Engineer position.\n\nYou have been shortlisted for our automated first-round technical assessment.\n\nAssessment Overview:\n• Position: DevOps Engineer\n• Format: 60-Second Rapid Assessment per Question\n• Proctoring: Camera, Microphone, and Screen Share Permissions Required\n• Duration: ~15 to 30 minutes\n\nPlease click the button below to verify your email and access your secure assessment room:\n\nStart URL: http://localhost:3000/assessment/cand-qviouf057-mtshgp0c",
+      "status": "SIMULATED",
+      "transport": "ETHEREAL",
+      "previewUrl": "https://ethereal.email/message/ap.ZC6pIpkHSHtZ2ap.ZDvNVsWIVelp6AAAAATnn2JmxUBGXJRHd4jv2Zaw",
+      "errorMessage": null,
+      "sentAt": "2026-09-08T09:44:46.560Z"
+    },
+    {
+      "id": "ff7384bc-65be-41b2-8fcc-30f5218e820e",
+      "recipientEmail": "jojoasta381@gmail.com",
+      "subject": "TechScreen Pro – SMTP Configuration Test Delivery",
+      "type": "SYSTEM",
+      "content": "Congratulations!\n\nYour SMTP / Gmail mail transport is properly configured and successfully communicating with external mail servers.\n\nDelivered to: jojoasta381@gmail.com\nTimestamp: 2026-09-08T09:46:53.047Z\n\nAll technical assessment invitations, 6-digit verification passcodes, and recruiter alerts will now be dispatched live to their respective inboxes.",
+      "status": "FAILED",
+      "transport": "GMAIL",
+      "previewUrl": null,
+      "errorMessage": "Invalid login: 535-5.7.8 Username and Password not accepted. For more information, go to\n535 5.7.8  https://support.google.com/mail/?p=BadCredentials 5a478bee46e88-3339af25062sm54869962eec.16 - gsmtp",
+      "sentAt": "2026-09-08T09:48:54.682Z"
+    },
+    {
+      "id": "9df73cac-fa5c-4f89-908d-f2a29291f886",
+      "recipientEmail": "jojoasta381@gmail.com",
+      "subject": "TechScreen Pro – SMTP Configuration Test Delivery",
+      "type": "SYSTEM",
+      "content": "Congratulations!\n\nYour SMTP / Gmail mail transport is properly configured and successfully communicating with external mail servers.\n\nDelivered to: jojoasta381@gmail.com\nTimestamp: 2026-09-08T16:52:20.275Z\n\nAll technical assessment invitations, 6-digit verification passcodes, and recruiter alerts will now be dispatched live to their respective inboxes.",
+      "status": "DELIVERED",
+      "transport": "GMAIL",
+      "previewUrl": null,
+      "errorMessage": null,
+      "sentAt": "2026-09-08T16:52:23.850Z"
+    },
+    {
+      "id": "2e632d1f-e0ab-4e65-b24e-6cb4aa9bed3f",
+      "recipientEmail": "jojoasta381@gmail.com",
+      "subject": "Technical Assessment Invitation – Frontend React Developer",
+      "type": "INVITATION",
+      "content": "Hello Adhavan jvr,\n\nThank you for applying for the Frontend React Developer position.\n\nYou have been shortlisted for our automated first-round technical assessment.\n\nAssessment Overview:\n• Position: Frontend React Developer\n• Format: 60-Second Rapid Assessment per Question\n• Proctoring: Camera, Microphone, and Screen Share Permissions Required\n• Duration: ~15 to 30 minutes\n\nPlease click the button below to verify your email and access your secure assessment room:\n\nStart URL: http://localhost:3000/assessment/cand-ij3lpnf1o-mtswujs7",
+      "status": "DELIVERED",
+      "transport": "GMAIL",
+      "previewUrl": null,
+      "errorMessage": null,
+      "sentAt": "2026-09-08T16:55:27.703Z"
+    },
+    {
+      "id": "618b1915-590d-4384-b832-d7d221d8c169",
+      "recipientEmail": "jojoasta381@gmail.com",
+      "subject": "TechScreen Pro – SMTP Configuration Test Delivery",
+      "type": "SYSTEM",
+      "content": "Congratulations!\n\nYour SMTP / Gmail mail transport is properly configured and successfully communicating with external mail servers.\n\nDelivered to: jojoasta381@gmail.com\nTimestamp: 2026-09-08T16:55:55.141Z\n\nAll technical assessment invitations, 6-digit verification passcodes, and recruiter alerts will now be dispatched live to their respective inboxes.",
+      "status": "DELIVERED",
+      "transport": "GMAIL",
+      "previewUrl": null,
+      "errorMessage": null,
+      "sentAt": "2026-09-08T16:55:58.089Z"
+    },
+    {
+      "id": "2e83166a-10c6-4e48-a979-9d5c5f47ef1a",
+      "recipientEmail": "david.joseph@example.com",
+      "subject": "Update regarding your application for DevOps Engineer",
+      "type": "REJECTION",
+      "content": "Hello David Joseph,\n\nThank you for taking the time to participate in our technical screening assessment for the DevOps Engineer position.\n\nAfter careful review of your assessment results alongside our current hiring requirements, we will not be proceeding with your application at this stage.\n\nWe truly appreciate the time and effort you dedicated to completing the assessment and wish you the best in your career journey.\n\nSincerely,\nThe Hiring Team",
+      "status": "DELIVERED",
+      "transport": "GMAIL",
+      "previewUrl": null,
+      "errorMessage": null,
+      "sentAt": "2026-09-10T16:01:36.992Z"
+    },
+    {
+      "id": "05fc32ca-38b5-4195-904d-0ed01bf2537d",
+      "recipientEmail": "david.joseph@example.com",
+      "subject": "Update regarding your application for DevOps Engineer",
+      "type": "REJECTION",
+      "content": "Hello David Joseph,\n\nThank you for taking the time to participate in our technical screening assessment for the DevOps Engineer position.\n\nAfter careful review of your assessment results alongside our current hiring requirements, we will not be proceeding with your application at this stage.\n\nWe truly appreciate the time and effort you dedicated to completing the assessment and wish you the best in your career journey.\n\nSincerely,\nThe Hiring Team",
+      "status": "DELIVERED",
+      "transport": "GMAIL",
+      "previewUrl": null,
+      "errorMessage": null,
+      "sentAt": "2026-09-10T16:02:14.983Z"
+    },
+    {
+      "id": "d26dc286-a401-41c8-9290-be52f6432ef4",
+      "recipientEmail": "jojoasta381@gmail.com",
+      "subject": "Update regarding your application for DevOps Engineer",
+      "type": "REJECTION",
+      "content": "Hello Adhavan jvr,\n\nThank you for taking the time to participate in our technical screening assessment for the DevOps Engineer position.\n\nAfter careful review of your assessment results alongside our current hiring requirements, we will not be proceeding with your application at this stage.\n\nWe truly appreciate the time and effort you dedicated to completing the assessment and wish you the best in your career journey.\n\nSincerely,\nThe Hiring Team",
+      "status": "DELIVERED",
+      "transport": "GMAIL",
+      "previewUrl": null,
+      "errorMessage": null,
+      "sentAt": "2026-09-10T17:26:25.896Z"
+    },
+    {
+      "id": "af53ddcd-7ecd-4cd1-9034-dd6353a2205e",
+      "recipientEmail": "jojoasta381@gmail.com",
+      "subject": "Update regarding your application for Frontend React Developer",
+      "type": "REJECTION",
+      "content": "Hello Adhavan jvr,\n\nThank you for taking the time to participate in our technical screening assessment for the Frontend React Developer position.\n\nAfter careful review of your assessment results alongside our current hiring requirements, we will not be proceeding with your application at this stage.\n\nWe truly appreciate the time and effort you dedicated to completing the assessment and wish you the best in your career journey.\n\nSincerely,\nThe Hiring Team",
+      "status": "DELIVERED",
+      "transport": "GMAIL",
+      "previewUrl": null,
+      "errorMessage": null,
+      "sentAt": "2026-09-10T17:27:16.851Z"
+    }
+  ],
+  "notifications": [
+    {
+      "id": "7e442e75-64a6-459d-a39b-7a06fe348f35",
+      "type": "MANUAL_REVIEW",
+      "title": "🚨 Manual Review Flagged",
+      "message": "David Joseph scored 84% but triggered High Proctoring Risk (78/100)",
+      "candidateName": "David Joseph",
+      "candidateId": null,
+      "jobTitle": "DevOps Engineer",
+      "link": null,
+      "isRead": true,
+      "createdAt": "2026-09-08T09:39:03.092Z"
+    },
+    {
+      "id": "7cfcff23-812b-4f46-a1e9-e1234787b699",
+      "type": "INTERVIEW_SCHEDULED",
+      "title": "📅 HR Interview Scheduled",
+      "message": "Interview scheduled with Adhavan jvr for 9/10/2026, 9:40 AM",
+      "candidateName": "Adhavan jvr",
+      "candidateId": null,
+      "jobTitle": "DevOps Engineer",
+      "link": null,
+      "isRead": true,
+      "createdAt": "2026-09-08T09:39:52.354Z"
+    },
+    {
+      "id": "25c02553-8d73-4370-ad77-ad848576b0e9",
+      "type": "INVITATION_SENT",
+      "title": "Assessment Invitation Dispatched",
+      "message": "Invitation sent to Adhavan jvr (jojoasta381@gmail.com) for DevOps Engineer",
+      "candidateName": "Adhavan jvr",
+      "candidateId": null,
+      "jobTitle": "DevOps Engineer",
+      "link": null,
+      "isRead": true,
+      "createdAt": "2026-09-08T09:39:52.354Z"
+    },
+    {
+      "id": "f8162381-5e9f-4dd1-8771-ed6cf4e04665",
+      "type": "TEST_PASSED",
+      "title": "✅ Candidate Passed Screening",
+      "message": "Arun Kumar scored 86.7% on DevOps Engineer (Shortlisted)",
+      "candidateName": "Arun Kumar",
+      "candidateId": null,
+      "jobTitle": "DevOps Engineer",
+      "link": null,
+      "isRead": true,
+      "createdAt": "2026-09-08T09:39:52.354Z"
+    },
+    {
+      "id": "db5b97dc-3688-401e-83a1-9d7f48946318",
+      "type": "INVITATION_SENT",
+      "title": "Assessment Invitation Dispatched",
+      "message": "Invitation sent to Adhavan jvr (jojoasta381@gmail.com) for DevOps Engineer",
+      "candidateName": "Adhavan jvr",
+      "candidateId": "9aa36d97-4bf3-43da-9486-de888b4cd9d5",
+      "jobTitle": "DevOps Engineer",
+      "link": "/assessment/cand-qviouf057-mtshgp0c",
+      "isRead": true,
+      "createdAt": "2026-09-08T09:44:46.569Z"
+    },
+    {
+      "id": "023a4595-742c-4210-bf5b-59fccd892a08",
+      "type": "TEST_PASSED",
+      "title": "Candidate Shortlisted",
+      "message": "Adhavan jvr has been shortlisted for DevOps Engineer.",
+      "candidateName": "Adhavan jvr",
+      "candidateId": "9aa36d97-4bf3-43da-9486-de888b4cd9d5",
+      "jobTitle": "DevOps Engineer",
+      "link": null,
+      "isRead": true,
+      "createdAt": "2026-09-08T16:53:11.865Z"
+    },
+    {
+      "id": "42dd3fee-5260-4af1-816d-9d40a67fd9e5",
+      "type": "INVITATION_SENT",
+      "title": "Assessment Invitation Dispatched",
+      "message": "Invitation sent to Adhavan jvr (jojoasta381@gmail.com) for Frontend React Developer",
+      "candidateName": "Adhavan jvr",
+      "candidateId": "9aa36d97-4bf3-43da-9486-de888b4cd9d5",
+      "jobTitle": "Frontend React Developer",
+      "link": "/assessment/cand-ij3lpnf1o-mtswujs7",
+      "isRead": false,
+      "createdAt": "2026-09-08T16:55:27.733Z"
+    },
+    {
+      "id": "e331311c-f0ef-419d-ae99-4673ea903e5f",
+      "type": "TEST_FAILED",
+      "title": "Candidate Application Rejected",
+      "message": "David Joseph was rejected for DevOps Engineer. Polite notification email sent.",
+      "candidateName": "David Joseph",
+      "candidateId": "59d6b95f-9923-471f-915f-4174e74f9cf7",
+      "jobTitle": "DevOps Engineer",
+      "link": null,
+      "isRead": false,
+      "createdAt": "2026-09-10T16:01:37.001Z"
+    },
+    {
+      "id": "b806e535-78ba-4fdc-a373-507fcec93867",
+      "type": "TEST_FAILED",
+      "title": "Candidate Application Rejected",
+      "message": "David Joseph was rejected for DevOps Engineer. Polite notification email sent.",
+      "candidateName": "David Joseph",
+      "candidateId": "59d6b95f-9923-471f-915f-4174e74f9cf7",
+      "jobTitle": "DevOps Engineer",
+      "link": null,
+      "isRead": false,
+      "createdAt": "2026-09-10T16:02:15.013Z"
+    },
+    {
+      "id": "abef8ad6-1a14-4bbe-b152-c75d02dff25f",
+      "type": "TEST_FAILED",
+      "title": "Candidate Application Rejected",
+      "message": "Adhavan jvr was rejected for DevOps Engineer. Polite notification email sent.",
+      "candidateName": "Adhavan jvr",
+      "candidateId": "9aa36d97-4bf3-43da-9486-de888b4cd9d5",
+      "jobTitle": "DevOps Engineer",
+      "link": null,
+      "isRead": false,
+      "createdAt": "2026-09-10T17:26:25.926Z"
+    },
+    {
+      "id": "cdcae194-a1ed-4db0-9926-32f0cd63ddf6",
+      "type": "TEST_FAILED",
+      "title": "Candidate Application Rejected",
+      "message": "Adhavan jvr was rejected for Frontend React Developer. Polite notification email sent.",
+      "candidateName": "Adhavan jvr",
+      "candidateId": "9aa36d97-4bf3-43da-9486-de888b4cd9d5",
+      "jobTitle": "Frontend React Developer",
+      "link": null,
+      "isRead": false,
+      "createdAt": "2026-09-10T17:27:16.859Z"
+    }
+  ],
+  "settings": [
+    {
+      "key": "SMTP_CONFIG",
+      "value": "{\"user\":\"adhavanjvr@gmail.com\",\"pass\":\"qvtcuphpatttvbdr\",\"from\":\"TechScreen Pro <adhavanjvr@gmail.com>\",\"service\":\"gmail\"}",
+      "updatedAt": "2026-09-08T16:50:18.777Z"
+    }
+  ],
+  "auditLogs": [
+    {
+      "id": "789429a5-f7c8-4203-ab18-7caa34c631cf",
+      "userId": "af085e2d-bbbf-4ee2-ade4-a3952263ada7",
+      "userName": "Sarah Jenkins (Lead HR)",
+      "action": "JOB_CREATED",
+      "entity": "Job",
+      "details": "Created job DevOps Engineer with 70% pass threshold.",
+      "createdAt": "2026-09-07T17:11:54.941Z"
+    },
+    {
+      "id": "1b28d404-a45c-44a4-9969-7b0393a9b553",
+      "userId": "af085e2d-bbbf-4ee2-ade4-a3952263ada7",
+      "userName": "Sarah Jenkins (Lead HR)",
+      "action": "CANDIDATE_SHORTLISTED",
+      "entity": "JobApplication",
+      "details": "Moved candidate Arun Kumar to HR Interview stage.",
+      "createdAt": "2026-09-07T17:11:54.946Z"
+    },
+    {
+      "id": "aa1b6d05-af9b-4aa7-a463-983e37cfdf4a",
+      "userId": "af085e2d-bbbf-4ee2-ade4-a3952263ada7",
+      "userName": "Sarah Jenkins (Lead HR)",
+      "action": "CANDIDATE_FLAGGED_REVIEW",
+      "entity": "JobApplication",
+      "details": "Candidate David Joseph scored 84% but flagged for MANUAL REVIEW due to High Proctoring Risk (78 pts).",
+      "createdAt": "2026-09-07T17:11:54.950Z"
+    },
+    {
+      "id": "a97d928b-7f89-49a0-af98-7a1fa4959689",
+      "userId": null,
+      "userName": null,
+      "action": "CANDIDATE_STATUS_UPDATED",
+      "entity": "JobApplication",
+      "details": "Updated candidate Arun Kumar status to REJECTED for job DevOps Engineer.",
+      "createdAt": "2026-09-07T17:57:48.382Z"
+    },
+    {
+      "id": "5d1ec997-c6ca-439a-afcc-b6f6d1fc3ef6",
+      "userId": null,
+      "userName": null,
+      "action": "CANDIDATE_STATUS_UPDATED",
+      "entity": "JobApplication",
+      "details": "Updated candidate Arun Kumar status to REJECTED for job DevOps Engineer.",
+      "createdAt": "2026-09-07T17:57:50.766Z"
+    },
+    {
+      "id": "bfe30f24-b6e7-48fa-adae-59c19e4482a8",
+      "userId": null,
+      "userName": null,
+      "action": "CANDIDATE_STATUS_UPDATED",
+      "entity": "JobApplication",
+      "details": "Updated candidate Arun Kumar status to REJECTED for job DevOps Engineer.",
+      "createdAt": "2026-09-07T17:57:51.345Z"
+    },
+    {
+      "id": "5997db29-159e-44ce-b769-04c3fe635234",
+      "userId": null,
+      "userName": null,
+      "action": "CANDIDATE_STATUS_UPDATED",
+      "entity": "JobApplication",
+      "details": "Updated candidate Arun Kumar status to REJECTED for job DevOps Engineer.",
+      "createdAt": "2026-09-07T17:57:51.545Z"
+    },
+    {
+      "id": "0ec22a8b-090e-4d75-b7cd-e1f75dfef63b",
+      "userId": null,
+      "userName": null,
+      "action": "CANDIDATE_STATUS_UPDATED",
+      "entity": "JobApplication",
+      "details": "Updated candidate Arun Kumar status to REJECTED for job DevOps Engineer.",
+      "createdAt": "2026-09-07T17:57:51.986Z"
+    },
+    {
+      "id": "09ded063-7db4-4dd7-af29-e4bfc23cc516",
+      "userId": null,
+      "userName": null,
+      "action": "CANDIDATE_STATUS_UPDATED",
+      "entity": "JobApplication",
+      "details": "Updated candidate Arun Kumar status to REJECTED for job DevOps Engineer.",
+      "createdAt": "2026-09-07T17:57:52.160Z"
+    },
+    {
+      "id": "c0f7ebef-d882-4139-96bf-7707dd90815e",
+      "userId": null,
+      "userName": null,
+      "action": "CANDIDATE_STATUS_UPDATED",
+      "entity": "JobApplication",
+      "details": "Updated candidate Arun Kumar status to REJECTED for job DevOps Engineer.",
+      "createdAt": "2026-09-07T17:57:52.424Z"
+    },
+    {
+      "id": "3b1b9f5c-43ea-485a-8534-f1d0eab0d313",
+      "userId": null,
+      "userName": null,
+      "action": "CANDIDATE_STATUS_UPDATED",
+      "entity": "JobApplication",
+      "details": "Updated candidate Arun Kumar status to REJECTED for job DevOps Engineer.",
+      "createdAt": "2026-09-07T17:57:53.103Z"
+    },
+    {
+      "id": "63e853c8-4435-427a-8beb-3e0e008bec66",
+      "userId": null,
+      "userName": null,
+      "action": "CANDIDATE_STATUS_UPDATED",
+      "entity": "JobApplication",
+      "details": "Updated candidate Arun Kumar status to REJECTED for job DevOps Engineer.",
+      "createdAt": "2026-09-07T17:58:28.339Z"
+    },
+    {
+      "id": "3a9416a1-13a2-4b1c-90e1-39089b1e8302",
+      "userId": null,
+      "userName": null,
+      "action": "CANDIDATE_STATUS_UPDATED",
+      "entity": "JobApplication",
+      "details": "Updated candidate Arun Kumar status to REJECTED for job DevOps Engineer.",
+      "createdAt": "2026-09-07T17:58:29.006Z"
+    },
+    {
+      "id": "dff6641c-050c-41a9-8b74-b52a880d7264",
+      "userId": null,
+      "userName": null,
+      "action": "CANDIDATE_STATUS_UPDATED",
+      "entity": "JobApplication",
+      "details": "Updated candidate Arun Kumar status to REJECTED for job DevOps Engineer.",
+      "createdAt": "2026-09-07T17:58:29.187Z"
+    },
+    {
+      "id": "e3733445-11ef-4918-8f52-8f167f0aa2b1",
+      "userId": null,
+      "userName": null,
+      "action": "CANDIDATE_STATUS_UPDATED",
+      "entity": "JobApplication",
+      "details": "Updated candidate Arun Kumar status to REJECTED for job DevOps Engineer.",
+      "createdAt": "2026-09-07T17:58:29.396Z"
+    },
+    {
+      "id": "e1d674ab-d68c-4cbb-9377-92425fa18f7c",
+      "userId": null,
+      "userName": null,
+      "action": "CANDIDATE_STATUS_UPDATED",
+      "entity": "JobApplication",
+      "details": "Updated candidate Arun Kumar status to REJECTED for job DevOps Engineer.",
+      "createdAt": "2026-09-07T17:58:29.613Z"
+    },
+    {
+      "id": "03c4d4dd-b35a-4071-a5d3-2219316b0250",
+      "userId": null,
+      "userName": null,
+      "action": "HR_INTERVIEW_SCHEDULED",
+      "entity": "JobApplication",
+      "details": "Scheduled HR interview for candidate Arun Kumar on 9/9/2026, 11:31:00 PM",
+      "createdAt": "2026-09-07T17:58:44.166Z"
+    },
+    {
+      "id": "ae2619c8-8a89-42f0-873b-e0f5e68ee130",
+      "userId": null,
+      "userName": null,
+      "action": "ASSESSMENT_EVALUATED",
+      "entity": "JobApplication",
+      "details": "Candidate Adhavan jvr evaluated: Score 48%, Status FAILED, Risk 0/100 (LOW), Recommendation: Reject Application.",
+      "createdAt": "2026-09-08T09:01:27.619Z"
+    },
+    {
+      "id": "9d61a142-d053-4b75-b4f4-6d0eab9eda56",
+      "userId": null,
+      "userName": null,
+      "action": "CANDIDATE_STATUS_UPDATED",
+      "entity": "JobApplication",
+      "details": "Updated candidate Adhavan jvr status to SHORTLISTED for job DevOps Engineer.",
+      "createdAt": "2026-09-08T09:02:22.084Z"
+    },
+    {
+      "id": "0484d68a-06ef-4ef3-8824-7ee9e5662c07",
+      "userId": null,
+      "userName": null,
+      "action": "CANDIDATE_STATUS_UPDATED",
+      "entity": "JobApplication",
+      "details": "Updated candidate Adhavan jvr status to SHORTLISTED for job DevOps Engineer.",
+      "createdAt": "2026-09-08T09:02:43.153Z"
+    },
+    {
+      "id": "53649722-40dd-4a45-a83e-740c9e684c66",
+      "userId": null,
+      "userName": null,
+      "action": "HR_INTERVIEW_SCHEDULED",
+      "entity": "JobApplication",
+      "details": "Scheduled HR interview for candidate Adhavan jvr on 9/10/2026, 9:40:00 AM",
+      "createdAt": "2026-09-08T09:04:14.280Z"
+    },
+    {
+      "id": "b1cda3c4-751a-4f69-9bd6-3420fc94857d",
+      "userId": null,
+      "userName": null,
+      "action": "CANDIDATE_STATUS_UPDATED",
+      "entity": "JobApplication",
+      "details": "Updated candidate Adhavan jvr status to SHORTLISTED for job DevOps Engineer.",
+      "createdAt": "2026-09-08T09:04:25.552Z"
+    },
+    {
+      "id": "e4bd6a2a-3207-488c-baa9-99dd9f396116",
+      "userId": null,
+      "userName": null,
+      "action": "CANDIDATE_STATUS_UPDATED",
+      "entity": "JobApplication",
+      "details": "Updated candidate Adhavan jvr status to SHORTLISTED for job DevOps Engineer.",
+      "createdAt": "2026-09-08T16:53:11.858Z"
+    },
+    {
+      "id": "2d1272e8-038e-4468-b7d0-9627f02a1d52",
+      "userId": null,
+      "userName": null,
+      "action": "CANDIDATE_STATUS_UPDATED",
+      "entity": "JobApplication",
+      "details": "Updated candidate David Joseph status to REJECTED for job DevOps Engineer.",
+      "createdAt": "2026-09-10T16:01:31.203Z"
+    },
+    {
+      "id": "52d684dc-114c-4156-9f1e-fd4a60445766",
+      "userId": null,
+      "userName": null,
+      "action": "CANDIDATE_STATUS_UPDATED",
+      "entity": "JobApplication",
+      "details": "Updated candidate David Joseph status to REJECTED for job DevOps Engineer.",
+      "createdAt": "2026-09-10T16:02:10.461Z"
+    },
+    {
+      "id": "6efe526e-379b-4199-8fd3-a5b2815b8559",
+      "userId": null,
+      "userName": null,
+      "action": "CANDIDATE_STATUS_UPDATED",
+      "entity": "JobApplication",
+      "details": "Updated candidate Adhavan jvr status to REJECTED for job Frontend React Developer.",
+      "createdAt": "2026-09-10T17:25:13.958Z"
+    },
+    {
+      "id": "b943f5fd-d2d1-4761-9381-935f84a8ffa4",
+      "userId": null,
+      "userName": null,
+      "action": "CANDIDATE_STATUS_UPDATED",
+      "entity": "JobApplication",
+      "details": "Updated candidate Adhavan jvr status to REJECTED for job DevOps Engineer.",
+      "createdAt": "2026-09-10T17:26:21.773Z"
+    }
+  ],
+  "webhooks": [
+    {
+      "id": "8911b7e9-a716-4728-be67-ae083d7441f9",
+      "name": "Workday HRIS Production Endpoint",
+      "endpointUrl": "https://api.workday.com/webhooks/techscreen-sync",
+      "secretKey": "whsec_demo_key_99",
+      "eventsJson": "[\"candidate.completed\",\"assessment.passed\"]",
+      "isActive": true,
+      "lastDispatchedAt": null,
+      "createdAt": "2026-09-04T12:48:16.695Z"
+    }
+  ]
+}

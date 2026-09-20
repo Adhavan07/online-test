@@ -55,12 +55,17 @@ export const CandidateFlow: React.FC<CandidateFlowProps> = ({ token }) => {
     setStep('SYSTEM_CHECK');
   };
 
-  const handleSystemCheckComplete = async () => {
+  const handleSystemCheckComplete = async (consentData?: { consentRecorded: boolean; consentVersion: string; declaredAge?: number }) => {
     try {
       const res = await fetch('/api/assessment/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token })
+        body: JSON.stringify({
+          token,
+          consentRecorded: consentData?.consentRecorded ?? true,
+          consentVersion: consentData?.consentVersion ?? 'DPDP-2025-V1',
+          declaredAge: consentData?.declaredAge,
+        })
       });
       const data = await res.json();
       if (data.success) {
@@ -81,26 +86,28 @@ export const CandidateFlow: React.FC<CandidateFlowProps> = ({ token }) => {
 
   if (loading) {
     return (
-      <div className="max-w-md mx-auto my-12 bg-slate-900 border border-slate-800 rounded-3xl p-8 text-center text-slate-400 space-y-4">
-        <Clock className="h-8 w-8 text-blue-500 animate-spin mx-auto" />
-        <p className="text-sm font-medium">Verifying Candidate Link & Assessment Details...</p>
+      <div className="max-w-md mx-auto my-12 bg-white border border-zinc-200 rounded p-8 text-center text-zinc-600 space-y-3 select-none shadow-xs">
+        <Clock className="h-6 w-6 text-zinc-400 animate-spin mx-auto" />
+        <p className="text-xs font-mono">Verifying candidate link & assessment details...</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="max-w-md mx-auto my-12 bg-slate-900 border border-slate-800 rounded-3xl p-8 text-center text-slate-300 space-y-4 shadow-2xl">
-        <div className="p-3 bg-red-500/10 text-red-400 rounded-2xl inline-block">
-          <AlertCircle className="h-8 w-8" />
+      <div className="max-w-md mx-auto my-12 bg-white border border-zinc-200 rounded p-8 text-center text-zinc-800 space-y-4 select-none shadow-sm">
+        <div className="p-2.5 bg-red-50 text-red-700 rounded border border-red-200 inline-block">
+          <AlertCircle className="h-6 w-6" />
         </div>
-        <h3 className="text-xl font-bold text-white">Assessment Access Error</h3>
-        <p className="text-xs text-slate-400">{error}</p>
+        <div>
+          <h3 className="text-base font-bold text-zinc-900 tracking-tight">Assessment Access Notice</h3>
+          <p className="text-xs text-zinc-600 mt-1">{error}</p>
+        </div>
         <button
           onClick={fetchAssessmentData}
-          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded-xl transition"
+          className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold rounded transition"
         >
-          Try Again
+          Retry Connection
         </button>
       </div>
     );
@@ -131,6 +138,7 @@ export const CandidateFlow: React.FC<CandidateFlowProps> = ({ token }) => {
       {step === 'PLAYER' && (
         <AssessmentPlayer
           attemptId={attemptId}
+          token={token}
           jobTitle={assessmentData.job.title}
           onAssessmentFinish={handleAssessmentFinish}
         />

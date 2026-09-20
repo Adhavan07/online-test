@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Network, X, Check, Loader2, Send, ShieldCheck, RefreshCw } from 'lucide-react';
+import { Network, X, Send } from 'lucide-react';
 
 interface EnterpriseWebhooksModalProps {
   isOpen: boolean;
@@ -85,49 +85,47 @@ export const EnterpriseWebhooksModal: React.FC<EnterpriseWebhooksModalProps> = (
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl space-y-5 p-6 relative">
+    <div className="fixed inset-0 z-50 bg-zinc-900/40 backdrop-blur-xs flex items-center justify-center p-4 select-none">
+      <div className="bg-white border border-zinc-200 rounded-md max-w-xl w-full overflow-hidden shadow-lg space-y-4 p-6 relative text-zinc-900">
         
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-          <div className="flex items-center space-x-2.5">
-            <div className="p-2 bg-blue-600/20 text-blue-400 rounded-xl border border-blue-500/30">
-              <Network className="h-5 w-5" />
-            </div>
+        <div className="flex items-center justify-between border-b border-zinc-200 pb-3">
+          <div className="flex items-center space-x-2">
+            <Network className="h-4 w-4 text-blue-600" />
             <div>
-              <h3 className="font-extrabold text-white text-base">Enterprise ATS & HRIS Webhooks</h3>
-              <p className="text-xs text-slate-400">Configure event streams for Workday, Greenhouse & Lever</p>
+              <h3 className="font-bold text-zinc-900 text-sm">Enterprise ATS & HRIS Webhooks</h3>
+              <p className="text-xs text-zinc-500">Configure event streams for Workday, Greenhouse & Lever</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800">
-            <X className="h-5 w-5" />
+          <button onClick={onClose} className="text-zinc-500 hover:bg-zinc-200 p-1 rounded transition">
+            <X className="h-4 w-4" />
           </button>
         </div>
 
         {error && (
-          <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-xs text-red-400">
+          <div className="p-2.5 bg-red-50 border border-red-200 rounded text-xs text-red-700">
             {error}
           </div>
         )}
 
         {/* Existing Webhooks List */}
-        <div className="space-y-2">
-          <h4 className="text-xs font-bold text-white uppercase tracking-wider">Active Webhook Endpoints</h4>
+        <div className="space-y-2 text-xs">
+          <h4 className="font-mono font-semibold text-zinc-500 uppercase text-[10px]">Active Webhook Endpoints</h4>
           {loading ? (
-            <p className="text-xs text-slate-400 italic">Loading configured endpoints...</p>
+            <p className="text-zinc-500 font-mono">Loading configured endpoints...</p>
           ) : webhooks.length === 0 ? (
-            <p className="text-xs text-slate-400 italic bg-slate-950 p-3 rounded-xl border border-slate-800">No active webhooks configured yet.</p>
+            <p className="text-zinc-500 bg-zinc-50 p-2.5 rounded border border-zinc-200">No active webhooks configured yet.</p>
           ) : (
-            <div className="space-y-2 max-h-[150px] overflow-y-auto pr-1">
+            <div className="space-y-2 max-h-[140px] overflow-y-auto pr-1">
               {webhooks.map((wh) => (
-                <div key={wh.id} className="bg-slate-950 p-3 rounded-xl border border-slate-800 flex items-center justify-between">
+                <div key={wh.id} className="bg-zinc-50 p-2.5 rounded border border-zinc-200 flex items-center justify-between">
                   <div>
-                    <h5 className="text-xs font-bold text-white">{wh.name}</h5>
-                    <p className="text-[11px] font-mono text-slate-400 truncate max-w-[280px]">{wh.endpointUrl}</p>
+                    <h5 className="font-bold text-zinc-900">{wh.name}</h5>
+                    <p className="font-mono text-[11px] text-zinc-500 truncate max-w-[280px]">{wh.endpointUrl}</p>
                   </div>
                   <button
                     onClick={() => handleTestDispatch(wh.id)}
-                    className="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 text-xs font-semibold rounded-lg border border-blue-500/30 transition flex items-center space-x-1"
+                    className="px-2.5 py-1 bg-zinc-900 hover:bg-zinc-800 text-white text-[11px] font-medium rounded transition flex items-center space-x-1"
                   >
                     <Send className="h-3 w-3" />
                     <span>Test Dispatch</span>
@@ -139,39 +137,39 @@ export const EnterpriseWebhooksModal: React.FC<EnterpriseWebhooksModalProps> = (
         </div>
 
         {/* Add New Webhook Form */}
-        <form onSubmit={handleCreate} className="space-y-3 pt-2 border-t border-slate-800">
-          <h4 className="text-xs font-bold text-white uppercase tracking-wider">Register New Endpoint</h4>
+        <form onSubmit={handleCreate} className="space-y-3 pt-2 border-t border-zinc-200 text-xs">
+          <h4 className="font-mono font-semibold text-zinc-500 uppercase text-[10px]">Register New Endpoint</h4>
           
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-slate-300 text-xs font-semibold mb-1">Integration Name</label>
+              <label className="block text-zinc-700 font-semibold mb-1">Integration Name</label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                className="w-full bg-white border border-zinc-200 rounded px-2.5 py-1.5 text-zinc-900 focus:border-zinc-400"
                 required
               />
             </div>
             <div>
-              <label className="block text-slate-300 text-xs font-semibold mb-1">Secret Key</label>
+              <label className="block text-zinc-700 font-semibold mb-1">Secret Key</label>
               <input
                 type="text"
                 value={secretKey}
                 onChange={(e) => setSecretKey(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-slate-300 focus:outline-none"
+                className="w-full bg-white border border-zinc-200 rounded px-2.5 py-1.5 font-mono text-zinc-800 focus:border-zinc-400"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-slate-300 text-xs font-semibold mb-1">Webhook Endpoint URL</label>
+            <label className="block text-zinc-700 font-semibold mb-1">Webhook Endpoint URL</label>
             <input
               type="url"
               placeholder="https://api.workday.com/webhooks/techscreen"
               value={endpointUrl}
               onChange={(e) => setEndpointUrl(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+              className="w-full bg-white border border-zinc-200 rounded px-2.5 py-1.5 text-zinc-900 focus:border-zinc-400"
               required
             />
           </div>
@@ -180,15 +178,15 @@ export const EnterpriseWebhooksModal: React.FC<EnterpriseWebhooksModalProps> = (
             <button
               type="button"
               onClick={() => handleTestDispatch()}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl border border-slate-700"
+              className="px-3.5 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-medium rounded"
             >
-              Test Mock Payload
+              Test Payload
             </button>
 
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition shadow-lg shadow-blue-600/20 disabled:opacity-50"
+              className="px-4 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white font-semibold rounded transition disabled:opacity-50"
             >
               {isSubmitting ? 'Registering...' : 'Save Webhook'}
             </button>
@@ -197,13 +195,13 @@ export const EnterpriseWebhooksModal: React.FC<EnterpriseWebhooksModalProps> = (
 
         {/* Test Result Log */}
         {testResult && (
-          <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs space-y-1.5">
-            <div className="flex justify-between items-center text-emerald-400 font-bold">
+          <div className="bg-zinc-50 p-2.5 rounded border border-zinc-200 text-xs space-y-1">
+            <div className="flex justify-between items-center text-emerald-800 font-bold font-mono">
               <span>{testResult.message || 'Dispatch Result'}</span>
-              <span className="font-mono text-[10px] bg-emerald-500/20 px-2 py-0.5 rounded">HTTP 200 OK</span>
+              <span className="text-[10px] bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded border border-emerald-200">HTTP 200 OK</span>
             </div>
             {testResult.deliveredPayload && (
-              <pre className="text-[10px] font-mono text-slate-400 bg-slate-900 p-2 rounded max-h-[90px] overflow-auto">
+              <pre className="text-[10px] font-mono text-zinc-800 bg-zinc-900 text-emerald-400 p-2 rounded max-h-[80px] overflow-auto">
                 {JSON.stringify(testResult.deliveredPayload, null, 2)}
               </pre>
             )}

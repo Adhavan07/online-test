@@ -1,6 +1,6 @@
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 generator client {
@@ -8,22 +8,33 @@ generator client {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  name      String
-  role      String   // ADMIN, RECRUITER, CANDIDATE
-  companyId String?
-  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  createdAt DateTime @default(now())
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String
+  passwordHash String?
+  role         String   // ADMIN, RECRUITER, CANDIDATE
+  companyId    String?
+  company      Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
 }
 
 model Company {
-  id        String   @id @default(uuid())
-  name      String
-  logoUrl   String?
-  users     User[]
-  jobs      Job[]
-  createdAt DateTime @default(now())
+  id           String               @id @default(uuid())
+  name         String
+  slug         String               @unique @default(cuid())
+  domain       String?              @unique
+  status       String               @default("ACTIVE") // ACTIVE, SUSPENDED, TRIAL
+  plan         String               @default("ENTERPRISE") // FREE, STARTER, PRO, ENTERPRISE
+  brandColor   String               @default("#2563eb")
+  settingsJson String?              // JSON string of tenant settings
+  logoUrl      String?
+  users        User[]
+  jobs         Job[]
+  templates    AssessmentTemplate[]
+  webhooks     WebhookConfig[]
+  createdAt    DateTime             @default(now())
+
+  @@index([slug])
 }
 
 model Job {
@@ -51,6 +62,8 @@ model AssessmentTemplate {
   passPercentage  Int                 @default(70)
   shuffleQuestions Boolean            @default(true)
   shuffleOptions   Boolean            @default(true)
+  companyId       String?
+  company         Company?            @relation(fields: [companyId], references: [id], onDelete: Cascade)
   sections        AssessmentSection[]
   jobs            Job[]
   attempts        AssessmentAttempt[]
@@ -105,13 +118,29 @@ model JobApplication {
   candidate            Candidate          @relation(fields: [candidateId], references: [id], onDelete: Cascade)
   jobId                String
   job                  Job                @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  status               String             @default("APPLIED") // APPLIED, INVITED, STARTED, IN_PROGRESS, SUBMITTED, EVALUATING, PASSED, FAILED, SHORTLISTED, HR_INTERVIEW, REJECTED
+  status               String             @default("APPLIED") // APPLIED, INVITED, STARTED, IN_PROGRESS, SUBMITTED, EVALUATING, PASSED, FAILED, MANUAL_REVIEW, SHORTLISTED, HR_INTERVIEW, REJECTED
   token                String             @unique
   tokenExpiresAt       DateTime
-  otpCode              String?
+  otpCode              String?            // Deprecated plaintext field
+  otpCodeHash          String?
+  otpExpiresAt         DateTime?
+  otpAttemptsCount     Int                @default(0)
+  otpLastSentAt        DateTime?
   isOtpVerified        Boolean            @default(false)
   interviewScheduledAt DateTime?
   interviewLink        String?
+  resumeUrl            String?
+  resumeFileName       String?
+  resumeParsedText     String?
+  resumeMatchScore     Float?             // 0-100% match against job requirements
+  resumeParsedSkills   String?            // JSON array of detected candidate skills
+  rankingScore         Float?             // Composite score: Tech(60%) + Resume(30%) - Risk Penalty(10%)
+  recommendation       String?            // STRONG_CANDIDATE, POTENTIAL_MATCH, MANUAL_REVIEW, REJECT
+  legalHold            Boolean            @default(false)
+  legalHoldReason      String?
+  consentRecorded      Boolean            @default(false)
+  consentVersion       String?
+  consentRecordedAt    DateTime?
   attempts             AssessmentAttempt[]
   notes                RecruiterNote[]
   liveSessions         LiveInterviewSession[]
@@ -139,10 +168,15 @@ model AssessmentAttempt {
   submittedAt              DateTime?
   currentQuestionIndex     Int               @default(0)
   questionOrderJson        String            // JSON string array of Question IDs
+  activeQuestionStartedAt  DateTime?         // Server timestamp when current question was served (prevents timer manipulation/refresh cheat)
   isCompleted              Boolean           @default(false)
   integrityScore           Int               @default(100)
+  proctoringRiskScore      Int               @default(0)       // 0 to 100 risk score
+  proctoringRiskLevel      String            @default("LOW")   // LOW, MEDIUM, HIGH
   tabSwitchCount           Int               @default(0)
   fullscreenViolationCount Int               @default(0)
+  screenShareStopCount     Int               @default(0)
+  cameraDisconnectCount    Int               @default(0)
   answers                  CandidateAnswer[]
   proctoringLogs           ProctoringLog[]
   result                   AssessmentResult?
@@ -160,18 +194,22 @@ model CandidateAnswer {
 }
 
 model AssessmentResult {
-  id                String            @id @default(uuid())
-  attemptId         String            @unique
-  attempt           AssessmentAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
-  totalScore        Int
-  maxScore          Int
-  percentage        Float
-  integrityScore    Int               @default(100)
-  codingScore       Int               @default(0)
-  codingMaxScore    Int               @default(0)
-  sectionScoresJson String            // JSON breakdown: { "Git": { score: 8, max: 10 }, ... }
-  isPassed          Boolean
-  evaluatedAt       DateTime          @default(now())
+  id                  String            @id @default(uuid())
+  attemptId           String            @unique
+  attempt             AssessmentAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  totalScore          Int
+  maxScore            Int
+  percentage          Float
+  integrityScore      Int               @default(100)
+  proctoringRiskScore Int               @default(0)
+  proctoringRiskLevel String            @default("LOW")
+  rankingScore        Float?
+  recommendation      String?
+  codingScore         Int               @default(0)
+  codingMaxScore      Int               @default(0)
+  sectionScoresJson   String            // JSON breakdown: { "Git": { score: 8, max: 10 }, ... }
+  isPassed            Boolean
+  evaluatedAt         DateTime          @default(now())
 }
 
 model ProctoringLog {
@@ -187,15 +225,40 @@ model EmailLog {
   id             String   @id @default(uuid())
   recipientEmail String
   subject        String
-  type           String   // INVITATION, PASS_ALERT, REJECTION, REMINDER
+  type           String   // INVITATION, OTP_VERIFICATION, PASS_ALERT, REJECTION, REMINDER, INTERVIEW_INVITE
   content        String
+  status         String   @default("DELIVERED") // DELIVERED, SIMULATED, FAILED
+  transport      String   @default("SIMULATION") // SMTP, GMAIL, ETHEREAL, SIMULATION
+  previewUrl     String?
+  errorMessage   String?
   sentAt         DateTime @default(now())
+}
+
+model Notification {
+  id            String   @id @default(uuid())
+  type          String   // INVITATION_SENT, TEST_STARTED, TEST_PASSED, TEST_FAILED, MANUAL_REVIEW, INTERVIEW_SCHEDULED, SYSTEM
+  title         String
+  message       String
+  candidateName String?
+  candidateId   String?
+  jobTitle      String?
+  link          String?
+  isRead        Boolean  @default(false)
+  companyId     String?
+  createdAt     DateTime @default(now())
+}
+
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }
 
 model AuditLog {
   id        String   @id @default(uuid())
   userId    String?
   userName  String?
+  companyId String?
   action    String
   entity    String
   details   String
@@ -239,6 +302,26 @@ model WebhookConfig {
   eventsJson       String    // JSON string e.g. ["candidate.completed", "assessment.passed"]
   isActive         Boolean   @default(true)
   lastDispatchedAt DateTime?
+  companyId        String?
+  company          Company?  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   createdAt        DateTime  @default(now())
+}
+
+model EmailSuppression {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  reason    String?  @default("UNSUBSCRIBED")
+  createdAt DateTime @default(now())
+}
+
+model UnsubscribeToken {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  email     String
+  isUsed    Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([tokenHash])
 }
 

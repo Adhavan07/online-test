@@ -1,11 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { X, FileText, CheckCircle, XCircle, Clock, Send, Award, Calendar, ChevronRight, ShieldAlert, ShieldCheck, Code2, Copy, Check, Sparkles, MessageSquare, Star, RotateCcw, Video } from 'lucide-react';
+import { 
+  X, FileText, CheckCircle, XCircle, Clock, Send, Award, Calendar, 
+  ChevronRight, ShieldAlert, ShieldCheck, Code2, Copy, Check, Sparkles, 
+  MessageSquare, Star, RotateCcw, Video, ExternalLink, RefreshCw, Briefcase, Camera, Eye,
+  Lock, Download, Trash2, Shield, Info
+} from 'lucide-react';
 
 interface CandidateDetailDrawerProps {
   applicationId: string | null;
   onClose: () => void;
   onOpenResume: (name: string, email: string, fileName?: string | null, url?: string | null) => void;
-  onStatusChanged: () => void;
+  onStatusChanged?: () => void;
+  onUpdate?: () => void;
 }
 
 export const CandidateDetailDrawer: React.FC<CandidateDetailDrawerProps> = ({
@@ -13,22 +19,114 @@ export const CandidateDetailDrawer: React.FC<CandidateDetailDrawerProps> = ({
   onClose,
   onOpenResume,
   onStatusChanged,
+  onUpdate,
 }) => {
+  const triggerStatusChanged = () => {
+    if (onStatusChanged) onStatusChanged();
+    if (onUpdate) onUpdate();
+  };
+
   const [detail, setDetail] = useState<any>(null);
   const [aiInsights, setAiInsights] = useState<any>(null);
   const [notes, setNotes] = useState<any[]>([]);
-  const [newNote, setNewNote] = useState({ rating: 5, comment: '', authorName: '' });
   const [loading, setLoading] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'ai-insights' | 'proctoring' | 'coding' | 'notes'>('overview');
+  const [reparsingResume, setReparsingResume] = useState(false);
+  const [newNote, setNewNote] = useState({ rating: 5, comment: '', authorName: '' });
+  const [showAllExtractedSkills, setShowAllExtractedSkills] = useState(false);
+  const [activeTab, setActiveTab] = useState<'overview' | 'ai-insights' | 'proctoring' | 'coding' | 'notes' | 'privacy'>('overview');
   const [copiedCodeIdx, setCopiedCodeIdx] = useState<number | null>(null);
+
+  // Privacy & Data Rights State
+  const [privacyLoading, setPrivacyLoading] = useState(false);
+  const [holdReasonInput, setHoldReasonInput] = useState('');
+  const [showHoldModal, setShowHoldModal] = useState(false);
+  const [showEraseModal, setShowEraseModal] = useState(false);
 
   // HR Interview Modal State
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [selectedSnapshot, setSelectedSnapshot] = useState<string | null>(null);
   const [scheduleData, setScheduleData] = useState({
     interviewScheduledAt: '',
     interviewLink: 'https://meet.google.com/techscreen-hr-interview',
   });
+
+  const handleExportDSAR = async () => {
+    if (!applicationId) return;
+    setPrivacyLoading(true);
+    try {
+      const res = await fetch(`/api/candidates/${applicationId}/export-data`);
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || 'Failed to fetch candidate data export');
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `candidate_data_export_${applicationId}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert('Error exporting candidate data: ' + err.message);
+    } finally {
+      setPrivacyLoading(false);
+    }
+  };
+
+  const handleToggleLegalHold = async () => {
+    if (!applicationId) return;
+    setPrivacyLoading(true);
+    const newStatus = !detail.legalHold;
+    try {
+      const res = await fetch(`/api/candidates/${applicationId}/legal-hold`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          legalHold: newStatus,
+          reason: newStatus ? (holdReasonInput || 'Compliance retention hold') : undefined
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setShowHoldModal(false);
+        setHoldReasonInput('');
+        fetchData();
+        triggerStatusChanged();
+      } else {
+        alert('Error updating legal hold: ' + data.error);
+      }
+    } catch (err: any) {
+      alert('Error updating legal hold: ' + err.message);
+    } finally {
+      setPrivacyLoading(false);
+    }
+  };
+
+  const handleEraseCandidateData = async () => {
+    if (!applicationId) return;
+    setPrivacyLoading(true);
+    try {
+      const res = await fetch(`/api/candidates/${applicationId}/personal-data`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (data.success) {
+        setShowEraseModal(false);
+        alert('Candidate personal data has been erased successfully. Anonymized record and tamper-resistant audit trail preserved.');
+        fetchData();
+        triggerStatusChanged();
+      } else {
+        alert('Data Erasure Blocked: ' + data.error);
+      }
+    } catch (err: any) {
+      alert('Error requesting data erasure: ' + err.message);
+    } finally {
+      setPrivacyLoading(false);
+    }
+  };
 
   const handleLaunchLiveRoom = async () => {
     try {
@@ -41,7 +139,7 @@ export const CandidateDetailDrawer: React.FC<CandidateDetailDrawerProps> = ({
       if (data.success) {
         window.open(data.interviewUrl, '_blank');
         fetchData();
-        onStatusChanged();
+        triggerStatusChanged();
       } else {
         alert(data.error);
       }
@@ -95,6 +193,7 @@ export const CandidateDetailDrawer: React.FC<CandidateDetailDrawerProps> = ({
   if (!applicationId) return null;
 
   const handleUpdateStatus = async (newStatus: string) => {
+    if (!applicationId) return;
     setUpdatingStatus(true);
     try {
       const res = await fetch(`/api/candidates/${applicationId}/status`, {
@@ -105,12 +204,31 @@ export const CandidateDetailDrawer: React.FC<CandidateDetailDrawerProps> = ({
       const data = await res.json();
       if (data.success) {
         setDetail((prev: any) => ({ ...prev, status: newStatus }));
-        onStatusChanged();
+        triggerStatusChanged();
       }
     } catch (err) {
-      console.error('Error updating status:', err);
+      console.error(err);
     } finally {
       setUpdatingStatus(false);
+    }
+  };
+
+  const handleReparseResume = async () => {
+    if (!applicationId) return;
+    setReparsingResume(true);
+    try {
+      const res = await fetch(`/api/candidates/${applicationId}/reparse-resume`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        await fetchData();
+        triggerStatusChanged();
+      } else {
+        alert(data.error || 'Failed to re-parse resume PDF.');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error communicating with server.');
+    } finally {
+      setReparsingResume(false);
     }
   };
 
@@ -132,7 +250,7 @@ export const CandidateDetailDrawer: React.FC<CandidateDetailDrawerProps> = ({
       if (data.success) {
         alert(data.message);
         fetchData();
-        onStatusChanged();
+        triggerStatusChanged();
       }
     } catch (err: any) {
       alert('Error resetting assessment: ' + err.message);
@@ -172,7 +290,7 @@ export const CandidateDetailDrawer: React.FC<CandidateDetailDrawerProps> = ({
         alert(data.message);
         setIsScheduleModalOpen(false);
         fetchData();
-        onStatusChanged();
+        triggerStatusChanged();
       }
     } catch (err: any) {
       alert('Error scheduling interview: ' + err.message);
@@ -186,493 +304,856 @@ export const CandidateDetailDrawer: React.FC<CandidateDetailDrawerProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-slate-950/70 backdrop-blur-sm animate-fadeIn flex justify-end">
-      <div className="bg-slate-900 border-l border-slate-800 w-full max-w-2xl h-full shadow-2xl flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 overflow-hidden bg-zinc-900/40 backdrop-blur-xs flex justify-end select-none">
+      <div className="bg-white border-l border-zinc-200 w-full max-w-2xl h-full shadow-xl flex flex-col text-zinc-900">
         
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/80">
+        {/* Header Bar */}
+        <div className="px-6 py-4 border-b border-zinc-200 flex items-center justify-between bg-zinc-50">
           <div>
-            <h2 className="text-lg font-bold text-white">Candidate Assessment Record</h2>
-            <p className="text-xs text-slate-400">Application ID: #{applicationId.slice(-8)}</p>
+            <div className="text-[11px] font-mono text-zinc-500 uppercase tracking-wider">
+              Candidate Application Record &bull; #{applicationId.slice(-8)}
+            </div>
+            <h2 className="text-xl font-bold text-zinc-900 tracking-tight">
+              {detail?.candidate?.name || 'Loading...'}
+            </h2>
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition">
+          <button 
+            onClick={onClose} 
+            className="p-1.5 rounded hover:bg-zinc-200 text-zinc-500 transition"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Tab Selector Bar */}
-        <div className="flex items-center px-6 border-b border-slate-800 bg-slate-950/60 gap-4 text-xs font-semibold overflow-x-auto">
-          <button
-            onClick={() => setActiveTab('overview')}
-            className={`py-3 border-b-2 transition shrink-0 ${
-              activeTab === 'overview' ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Overview
-          </button>
-
-          <button
-            onClick={() => setActiveTab('ai-insights')}
-            className={`py-3 border-b-2 transition flex items-center gap-1.5 shrink-0 ${
-              activeTab === 'ai-insights' ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            AI Insights
-          </button>
-
-          <button
-            onClick={() => setActiveTab('proctoring')}
-            className={`py-3 border-b-2 transition flex items-center gap-1.5 shrink-0 ${
-              activeTab === 'proctoring' ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <ShieldCheck className="w-3.5 h-3.5" />
-            Integrity ({detail?.assessmentSummary?.integrityScore || 100}%)
-          </button>
-
-          <button
-            onClick={() => setActiveTab('coding')}
-            className={`py-3 border-b-2 transition flex items-center gap-1.5 shrink-0 ${
-              activeTab === 'coding' ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Code2 className="w-3.5 h-3.5" />
-            Code ({detail?.assessmentSummary?.codeSubmissions?.length || 0})
-          </button>
-
-          <button
-            onClick={() => setActiveTab('notes')}
-            className={`py-3 border-b-2 transition flex items-center gap-1.5 shrink-0 ${
-              activeTab === 'notes' ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <MessageSquare className="w-3.5 h-3.5" />
-            Notes ({notes.length})
-          </button>
-        </div>
-
-        {/* Content */}
-        {loading ? (
-          <div className="p-12 text-center text-slate-400 text-sm">Loading candidate details...</div>
-        ) : !detail ? (
-          <div className="p-12 text-center text-slate-400 text-sm">Candidate details not found.</div>
-        ) : (
-          <div className="p-6 overflow-y-auto space-y-6 flex-1 text-slate-300">
-            
-            {/* Candidate Top Banner */}
-            <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 flex flex-wrap items-center justify-between gap-4">
+        {/* Candidate Summary Banner */}
+        {detail && (
+          <div className="p-6 border-b border-zinc-200 bg-white space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h3 className="text-xl font-bold text-white">{detail.candidate.name}</h3>
-                <p className="text-xs text-slate-400 mt-0.5">{detail.candidate.email} • {detail.candidate.phone || 'No phone'}</p>
-                <div className="mt-2 flex items-center space-x-2">
-                  <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                    Role: {detail.job.title}
-                  </span>
-                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-md ${
-                    detail.status === 'HR_INTERVIEW' ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' :
-                    detail.status === 'PASSED' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                    detail.status === 'FAILED' || detail.status === 'REJECTED' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
-                    'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                  }`}>
-                    {detail.status}
-                  </span>
-                </div>
+                <div className="text-sm font-semibold text-zinc-900">{detail.job?.title}</div>
+                <div className="text-xs text-zinc-500 font-mono">{detail.candidate?.email}</div>
+              </div>
+              <span className={`inline-block px-2.5 py-1 text-xs font-semibold rounded border ${
+                detail.status === 'PASSED' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' :
+                detail.status === 'HR_INTERVIEW' || detail.status === 'SHORTLISTED' ? 'bg-blue-50 text-blue-800 border-blue-200' :
+                detail.status === 'FAILED' ? 'bg-red-50 text-red-700 border-red-200' :
+                'bg-zinc-100 text-zinc-700 border-zinc-200'
+              }`}>
+                Stage: {detail.status.replace('_', ' ')}
+              </span>
+            </div>
+
+            {/* Quick Action Controls */}
+            {/* Status & Pipeline Decision Controls */}
+            <div className="pt-2 border-t border-zinc-100 space-y-2">
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="text-[10px] font-mono uppercase text-zinc-400 font-semibold mr-1">Decision:</span>
+                
+                {detail.status !== 'HR_INTERVIEW' && (
+                  <button
+                    onClick={() => handleUpdateStatus('HR_INTERVIEW')}
+                    disabled={updatingStatus}
+                    className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded font-medium transition flex items-center space-x-1"
+                  >
+                    <CheckCircle className="h-3 w-3" />
+                    <span>Move to HR</span>
+                  </button>
+                )}
+
+                {detail.status !== 'SHORTLISTED' && detail.status !== 'HR_INTERVIEW' && (
+                  <button
+                    onClick={() => handleUpdateStatus('SHORTLISTED')}
+                    disabled={updatingStatus}
+                    className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-300 rounded font-medium transition"
+                  >
+                    <span>Shortlist</span>
+                  </button>
+                )}
+
+                {detail.status === 'MANUAL_REVIEW' && (
+                  <button
+                    onClick={() => handleUpdateStatus('PASSED')}
+                    disabled={updatingStatus}
+                    className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded font-medium transition flex items-center space-x-1"
+                  >
+                    <span>Approve (Clear Review)</span>
+                  </button>
+                )}
+
+                {detail.status !== 'MANUAL_REVIEW' && detail.status !== 'REJECTED' && (
+                  <button
+                    onClick={() => handleUpdateStatus('MANUAL_REVIEW')}
+                    disabled={updatingStatus}
+                    className="px-2.5 py-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 border border-zinc-300 rounded font-medium transition"
+                  >
+                    <span>Flag Review</span>
+                  </button>
+                )}
+
+                {detail.status !== 'REJECTED' && (
+                  <button
+                    onClick={() => {
+                      if (confirm(`Are you sure you want to reject candidate ${detail.candidate.name}? A polite notification will be dispatched.`)) {
+                        handleUpdateStatus('REJECTED');
+                      }
+                    }}
+                    disabled={updatingStatus}
+                    className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded font-medium transition flex items-center space-x-1"
+                  >
+                    <XCircle className="h-3 w-3" />
+                    <span>Reject</span>
+                  </button>
+                )}
               </div>
 
-              <div className="flex flex-wrap gap-2 shrink-0">
+              {/* Utility Tools */}
+              <div className="flex flex-wrap gap-2 text-xs pt-1">
                 <button
                   onClick={handleLaunchLiveRoom}
-                  className="flex items-center space-x-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3 py-2 rounded-xl transition shadow-md shadow-blue-600/20"
-                  title="Launch live pair-coding room"
+                  className="flex items-center space-x-1.5 bg-blue-600 hover:bg-blue-700 text-white font-medium px-2.5 py-1 rounded transition"
                 >
                   <Video className="h-3.5 w-3.5" />
                   <span>Live Sandbox</span>
                 </button>
+
                 <button
                   onClick={handleIssueBadge}
-                  className="flex items-center space-x-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold px-3 py-2 rounded-xl transition shadow-md shadow-purple-600/20"
-                  title="Issue verified public skill badge"
+                  className="flex items-center space-x-1.5 bg-zinc-900 hover:bg-zinc-800 text-white font-medium px-2.5 py-1 rounded transition"
                 >
-                  <Award className="h-3.5 w-3.5 text-amber-300" />
+                  <Award className="h-3.5 w-3.5 text-amber-400" />
                   <span>Issue Badge</span>
                 </button>
+
                 <button
                   onClick={() => onOpenResume(detail.candidate.name, detail.candidate.email, detail.candidate.resumeFileName, detail.candidate.resumeUrl)}
-                  className="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold px-3 py-2 rounded-xl border border-slate-700 transition"
+                  className="flex items-center space-x-1.5 bg-white hover:bg-zinc-50 text-zinc-700 font-medium px-2.5 py-1 rounded border border-zinc-200 transition"
                 >
-                  <FileText className="h-4 w-4 text-blue-400" />
+                  <FileText className="h-3.5 w-3.5 text-zinc-500" />
                   <span>Resume</span>
                 </button>
+
                 <button
                   onClick={handleResetAttempt}
-                  className="flex items-center space-x-1.5 bg-amber-950/40 hover:bg-amber-900/50 text-amber-300 text-xs font-semibold px-3 py-2 rounded-xl border border-amber-800/40 transition"
-                  title="Reset test attempt to allow retake"
+                  className="flex items-center space-x-1.5 bg-white hover:bg-zinc-50 text-zinc-700 font-medium px-2.5 py-1 rounded border border-zinc-200 transition"
                 >
-                  <RotateCcw className="h-3.5 w-3.5" />
+                  <RotateCcw className="h-3.5 w-3.5 text-zinc-500" />
                   <span>Allow Retake</span>
+                </button>
+
+                <button
+                  onClick={handleResendInvite}
+                  className="px-2.5 py-1 bg-white hover:bg-zinc-50 text-zinc-600 border border-zinc-200 rounded font-medium transition ml-auto"
+                >
+                  <span>Resend Test Link</span>
                 </button>
               </div>
             </div>
+          </div>
+        )}
 
-            {/* TAB 1: OVERVIEW */}
-            {activeTab === 'overview' && (
-              <div className="space-y-6">
-                <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 space-y-4">
-                  <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
-                    <h4 className="font-bold text-white text-sm flex items-center space-x-2">
-                      <Award className="h-4 w-4 text-amber-400" />
-                      <span>Technical Evaluation Results</span>
-                    </h4>
-                    <span className="text-xs text-slate-400 font-medium">Pass Threshold: {detail.job.passThreshold}%</span>
+        {/* Navigation Tabs Bar */}
+        <div className="flex items-center px-6 border-b border-zinc-200 bg-zinc-50 gap-6 text-xs font-semibold overflow-x-auto">
+          {[
+            { id: 'overview', label: 'Overview' },
+            { id: 'ai-insights', label: 'AI Insights' },
+            { id: 'proctoring', label: `Integrity (${detail?.assessmentSummary?.integrityScore || 100}%)` },
+            { id: 'coding', label: `Code (${detail?.assessmentSummary?.codeSubmissions?.length || 0})` },
+            { id: 'notes', label: `Team Notes (${notes.length})` },
+            { id: 'privacy', label: detail?.legalHold ? 'Privacy (Hold Active)' : 'Privacy & Compliance' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`py-3 border-b-2 transition shrink-0 ${
+                activeTab === tab.id
+                  ? 'border-blue-600 text-blue-600 font-bold'
+                  : 'border-transparent text-zinc-500 hover:text-zinc-900'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Drawer Body Content */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6 text-xs">
+          
+          {loading || !detail ? (
+            <div className="py-12 text-center text-zinc-500 font-mono">
+              Loading record detail...
+            </div>
+          ) : (
+            <>
+              {/* TAB 1: OVERVIEW */}
+              {activeTab === 'overview' && (
+                <div className="space-y-6">
+                  
+                  {/* Automated Candidate Screening Recommendation Verdict */}
+                  {detail.resumeMatch && (
+                    <div className={`p-4 rounded-lg border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                      detail.resumeMatch.recommendation === 'STRONG_CANDIDATE'
+                        ? 'bg-emerald-50 border-emerald-200 text-emerald-950'
+                        : detail.resumeMatch.recommendation === 'MANUAL_REVIEW'
+                        ? 'bg-amber-50 border-amber-200 text-amber-950'
+                        : detail.resumeMatch.recommendation === 'REJECT'
+                        ? 'bg-red-50 border-red-200 text-red-950'
+                        : 'bg-blue-50 border-blue-200 text-blue-950'
+                    }`}>
+                      <div className="space-y-1">
+                        <div className="text-[10px] font-mono uppercase tracking-wider font-bold opacity-80">
+                          Automated Candidate Screening Verdict
+                        </div>
+                        <div className="text-base font-bold flex items-center space-x-2">
+                          <span>{detail.resumeMatch.recommendationLabel || detail.resumeMatch.recommendation.replace('_', ' ')}</span>
+                          <span className="text-xs font-normal font-mono opacity-80">
+                            &bull; Composite Ranking: {detail.resumeMatch.rankingScore} / 100
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-left sm:text-right text-[11px] font-mono opacity-90">
+                        <div>Tech Score (60%): <span className="font-bold">{detail.assessmentSummary?.scorePercentage ?? 0}%</span></div>
+                        <div>Resume Match (30%): <span className="font-bold">{detail.resumeMatch.matchScore}%</span></div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 4-Card Scores Breakdown */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-zinc-50 p-4 rounded border border-zinc-200">
+                    <div>
+                      <div className="text-[10px] font-mono text-zinc-500 uppercase">Technical Score</div>
+                      <div className="text-xl font-bold font-mono text-zinc-900 mt-1">
+                        {detail.assessmentSummary?.scorePercentage ?? detail.assessmentSummary?.percentage ?? 0}%
+                      </div>
+                      <div className="text-[10px] text-zinc-500 font-mono">
+                        {detail.assessmentSummary?.score ?? detail.assessmentSummary?.totalScore ?? 0} / {detail.assessmentSummary?.totalPossible ?? detail.assessmentSummary?.maxScore ?? 100} pts
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-[10px] font-mono text-zinc-500 uppercase">Resume Match</div>
+                      <div className="text-xl font-bold font-mono text-blue-700 mt-1">
+                        {detail.resumeMatch?.matchScore ?? 0}%
+                      </div>
+                      <div className="text-[10px] text-zinc-500">
+                        {detail.resumeMatch?.matchedSkills?.length || 0} skills matched
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-[10px] font-mono text-zinc-500 uppercase">Proctoring Risk</div>
+                      <div className={`text-xl font-bold font-mono mt-1 ${
+                        detail.assessmentSummary?.riskLevel === 'HIGH' ? 'text-red-600' :
+                        detail.assessmentSummary?.riskLevel === 'MEDIUM' ? 'text-amber-600' : 'text-emerald-700'
+                      }`}>
+                        {detail.assessmentSummary?.riskLevel || 'LOW'}
+                      </div>
+                      <div className="text-[10px] text-zinc-500 font-mono">
+                        Risk: {detail.assessmentSummary?.proctoringRiskScore ?? (100 - (detail.assessmentSummary?.integrityScore ?? 100))}/100 pts
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-[10px] font-mono text-zinc-500 uppercase">Pass Threshold</div>
+                      <div className="text-xl font-bold font-mono text-zinc-900 mt-1">
+                        {detail.job?.passThreshold}%
+                      </div>
+                      <div className="text-[10px] text-zinc-500">
+                        {(detail.assessmentSummary?.passed ?? detail.assessmentSummary?.isPassed) ? (
+                          <span className="text-emerald-700 font-semibold">&ge; Passed</span>
+                        ) : (
+                          <span className="text-red-600 font-semibold">&lt; Failed</span>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
-                  {detail.assessmentSummary ? (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between bg-slate-900 p-4 rounded-xl border border-slate-800">
-                        <div>
-                          <div className="text-xs text-slate-400">Total Score Achieved</div>
-                          <div className="text-2xl font-extrabold text-white">
-                            {detail.assessmentSummary.totalScore} / {detail.assessmentSummary.maxScore} <span className="text-lg font-semibold text-slate-400">({detail.assessmentSummary.percentage}%)</span>
-                          </div>
+                  {/* Skills Match Overview */}
+                  {detail.resumeMatch && (
+                    <div className="p-4 bg-white border border-zinc-200 rounded space-y-3">
+                      <div className="flex justify-between items-center text-xs font-mono font-semibold uppercase text-zinc-500">
+                        <div className="flex items-center space-x-2">
+                          <span>Skills Verification Match</span>
+                          {detail.resumeMatch.experienceYears && (
+                            <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded text-[10px]">
+                              <Briefcase className="h-2.5 w-2.5" />
+                              <span>~{detail.resumeMatch.experienceYears}y exp</span>
+                            </span>
+                          )}
                         </div>
-                        <div>
-                          {detail.assessmentSummary.isPassed ? (
-                            <div className="flex items-center space-x-1.5 bg-emerald-500/10 text-emerald-400 px-3 py-1.5 rounded-xl border border-emerald-500/20 text-xs font-bold">
-                              <CheckCircle className="h-4 w-4" />
-                              <span>PASSED</span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center space-x-1.5 bg-red-500/10 text-red-400 px-3 py-1.5 rounded-xl border border-red-500/20 text-xs font-bold">
-                              <XCircle className="h-4 w-4" />
-                              <span>FAILED</span>
-                            </div>
+                        <div className="flex items-center space-x-3">
+                          <span>{detail.resumeMatch.matchScore}% Coverage</span>
+                          {detail.candidate?.resumeUrl && (
+                            <button
+                              type="button"
+                              disabled={reparsingResume}
+                              onClick={handleReparseResume}
+                              className="flex items-center space-x-1 text-[11px] font-sans font-medium text-blue-600 hover:text-blue-800 disabled:text-zinc-400 transition cursor-pointer"
+                              title="Re-run deep PDF text extraction and skill analysis"
+                            >
+                              <RefreshCw className={`h-3 w-3 ${reparsingResume ? 'animate-spin' : ''}`} />
+                              <span>{reparsingResume ? 'Parsing PDF...' : 'Re-Parse PDF'}</span>
+                            </button>
                           )}
                         </div>
                       </div>
 
-                      <div className="space-y-3">
-                        <h5 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Section Performance Breakdown</h5>
-                        {Object.entries(detail.assessmentSummary.sectionScores || {}).map(([secName, secData]: [string, any]) => {
-                          const secPct = Math.round((secData.score / (secData.max || 1)) * 100);
-                          return (
-                            <div key={secName} className="space-y-1 text-xs">
-                              <div className="flex justify-between font-medium">
-                                <span className="text-slate-200">{secName}</span>
-                                <span className="text-slate-400">{secData.score}/{secData.max} ({secPct}%)</span>
+                      <div className="space-y-2">
+                        {detail.resumeMatch.matchedSkills?.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-[10px] text-emerald-800 font-mono font-bold mr-1">MATCHED:</span>
+                            {detail.resumeMatch.matchedSkills.map((sk: string, i: number) => (
+                              <span key={i} className="px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded font-mono text-[10px]">
+                                &check; {sk}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {detail.resumeMatch.missingSkills?.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-[10px] text-zinc-500 font-mono font-bold mr-1">GAP:</span>
+                            {detail.resumeMatch.missingSkills.map((sk: string, i: number) => (
+                              <span key={i} className="px-2 py-0.5 bg-zinc-100 text-zinc-600 border border-zinc-200 rounded font-mono text-[10px]">
+                                {sk}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* All Extracted Skills from PDF */}
+                        {detail.resumeMatch.candidateSkills?.length > 0 && (
+                          <div className="pt-2 border-t border-zinc-100">
+                            <button
+                              type="button"
+                              onClick={() => setShowAllExtractedSkills(!showAllExtractedSkills)}
+                              className="text-[11px] text-blue-600 hover:text-blue-800 font-medium cursor-pointer flex items-center space-x-1"
+                            >
+                              <span>{showAllExtractedSkills ? '▲ Hide' : '▼ View'} all {detail.resumeMatch.candidateSkills.length} extracted tech skills from resume</span>
+                            </button>
+                            {showAllExtractedSkills && (
+                              <div className="flex flex-wrap gap-1 mt-2 p-2.5 bg-zinc-50 rounded border border-zinc-200 text-[10px] font-mono text-zinc-700">
+                                {detail.resumeMatch.candidateSkills.map((sk: string, i: number) => (
+                                  <span key={i} className="px-1.5 py-0.5 bg-white border border-zinc-200 rounded">
+                                    {sk}
+                                  </span>
+                                ))}
                               </div>
-                              <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
-                                <div
-                                  className={`h-full transition-all rounded-full ${secPct >= 70 ? 'bg-emerald-500' : secPct >= 50 ? 'bg-amber-500' : 'bg-red-500'}`}
-                                  style={{ width: `${secPct}%` }}
-                                />
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Section Performance Table */}
+                  {detail.assessmentSummary && (
+                    <div className="space-y-2">
+                      <h4 className="font-semibold text-zinc-900 text-xs uppercase font-mono text-zinc-500">
+                        Section Breakdown
+                      </h4>
+                      <div className="border border-zinc-200 rounded divide-y divide-zinc-200 bg-white">
+                        {(
+                          detail.assessmentSummary.sectionResults ||
+                          (detail.assessmentSummary.sectionScores
+                            ? Object.entries(detail.assessmentSummary.sectionScores).map(([title, val]: [string, any]) => ({
+                                title,
+                                correct: val.score,
+                                total: val.max,
+                                percentage: Math.round(((val.score || 0) / (val.max || 1)) * 100),
+                              }))
+                            : [])
+                        ).map((sec: any, idx: number) => {
+                          const pct = sec.percentage !== undefined ? sec.percentage : Math.round(((sec.correct || 0) / (sec.total || 1)) * 100);
+                          return (
+                            <div key={idx} className="p-3 flex justify-between items-center">
+                              <div>
+                                <div className="font-semibold text-zinc-900">{sec.title}</div>
+                                <div className="text-[10px] text-zinc-500">{sec.correct ?? sec.score} of {sec.total ?? sec.max} points</div>
+                              </div>
+                              <div className="font-mono font-bold text-zinc-900 text-sm">
+                                {pct}%
                               </div>
                             </div>
                           );
                         })}
                       </div>
                     </div>
-                  ) : (
-                    <div className="py-6 text-center text-slate-400 text-xs flex flex-col items-center gap-2">
-                      <Clock className="h-6 w-6 text-slate-500 animate-pulse" />
-                      <span>Assessment Pending — Candidate has not completed evaluation yet.</span>
-                    </div>
                   )}
-                </div>
 
-                <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 space-y-3">
-                  <h4 className="font-bold text-white text-sm flex items-center space-x-2">
-                    <Calendar className="h-4 w-4 text-blue-400" />
-                    <span>Assessment Audit Timeline</span>
-                  </h4>
-                  <div className="space-y-2.5 pt-1">
-                    {detail.timeline.map((item: any, idx: number) => (
-                      <div key={idx} className="flex items-center space-x-3 text-xs">
-                        <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
-                        <div className="flex-1 flex justify-between">
-                          <span className="font-medium text-slate-200">{item.event}</span>
-                          <span className="text-slate-500 font-mono">{new Date(item.timestamp).toLocaleString()}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* TAB 2: AI INSIGHTS */}
-            {activeTab === 'ai-insights' && (
-              <div className="space-y-6">
-                {aiInsights ? (
-                  <div className="space-y-4">
-                    {/* Executive Recommendation Banner */}
-                    <div className="p-5 bg-slate-950 border border-slate-800 rounded-2xl space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-extrabold uppercase text-amber-400 tracking-wider flex items-center space-x-1">
-                          <Sparkles className="w-4 h-4" />
-                          <span>AI Executive Recommendation</span>
-                        </span>
-                        <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider ${
-                          aiInsights.recommendation === 'STRONG_PASS' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                          aiInsights.recommendation === 'PASS_WITH_RESERVATION' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
-                          'bg-red-500/10 text-red-400 border border-red-500/20'
-                        }`}>
-                          {aiInsights.recommendation.replace(/_/g, ' ')}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-200 leading-relaxed font-medium bg-slate-900 p-3.5 rounded-xl border border-slate-800">
-                        {aiInsights.summaryText}
-                      </p>
-                    </div>
-
-                    {/* Skill Strengths & Areas to Probe */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                      <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-2">
-                        <span className="font-bold text-emerald-400 flex items-center space-x-1">
-                          <CheckCircle className="w-4 h-4" />
-                          <span>Core Domain Strengths</span>
-                        </span>
-                        <ul className="space-y-1 text-slate-300">
-                          {aiInsights.strengths?.length > 0 ? (
-                            aiInsights.strengths.map((s: string) => <li key={s}>• Strong proficiency in {s}</li>)
-                          ) : (
-                            <li className="text-slate-500 italic">No high-proficiency sections identified</li>
-                          )}
-                        </ul>
-                      </div>
-
-                      <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-2">
-                        <span className="font-bold text-amber-400 flex items-center space-x-1">
-                          <Clock className="w-4 h-4" />
-                          <span>Technical Probe Areas</span>
-                        </span>
-                        <ul className="space-y-1 text-slate-300">
-                          {aiInsights.weaknesses?.length > 0 ? (
-                            aiInsights.weaknesses.map((w: string) => <li key={w}>• Review candidate understanding in {w}</li>)
-                          ) : (
-                            <li className="text-slate-400">All technical sections scored above 70%</li>
-                          )}
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-8 text-center text-slate-500 text-xs">AI Insights pending assessment completion.</div>
-                )}
-              </div>
-            )}
-
-            {/* TAB 3: PROCTORING INTEGRITY SCORECARD */}
-            {activeTab === 'proctoring' && (
-              <div className="space-y-6">
-                <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 space-y-4">
-                  <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
-                    <h4 className="font-bold text-white text-sm flex items-center space-x-2">
-                      <ShieldCheck className="h-4 w-4 text-emerald-400" />
-                      <span>Proctoring Integrity Scorecard</span>
+                  {/* Stage Transition Actions */}
+                  <div className="pt-4 border-t border-zinc-200 space-y-3">
+                    <h4 className="font-mono text-[10px] text-zinc-500 uppercase font-semibold">
+                      Recruiter Decision Actions
                     </h4>
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-extrabold uppercase ${
-                      (detail.assessmentSummary?.integrityScore || 100) >= 85
-                        ? 'bg-emerald-950 text-emerald-400 border border-emerald-800/40'
-                        : 'bg-rose-950 text-rose-400 border border-rose-800/40'
-                    }`}>
-                      {detail.assessmentSummary?.integrityScore || 100}% Trust Rating
-                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => handleUpdateStatus('SHORTLISTED')}
+                        disabled={updatingStatus}
+                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded transition"
+                      >
+                        Shortlist Candidate
+                      </button>
+
+                      <button
+                        onClick={() => setIsScheduleModalOpen(true)}
+                        className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded transition"
+                      >
+                        Schedule HR Interview
+                      </button>
+
+                      <button
+                        onClick={() => handleUpdateStatus('REJECTED')}
+                        disabled={updatingStatus}
+                        className="px-3.5 py-2 bg-zinc-100 hover:bg-red-50 text-red-700 font-medium rounded border border-zinc-200 transition"
+                      >
+                        Reject Application
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3 text-xs">
-                    <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl">
-                      <div className="text-slate-400 font-medium">Window Tab Switch Count</div>
-                      <div className="text-xl font-bold text-white mt-1">
-                        {detail.assessmentSummary?.tabSwitchCount || 0} times
-                      </div>
+                </div>
+              )}
+
+              {/* TAB 2: AI INSIGHTS */}
+              {activeTab === 'ai-insights' && aiInsights && (
+                <div className="space-y-4">
+                  <div className="p-4 bg-zinc-50 rounded border border-zinc-200 space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-zinc-900">Overall Hiring Recommendation</span>
+                      <span className={`font-mono font-bold px-2 py-0.5 rounded text-[11px] ${
+                        aiInsights.recommendation?.includes('PASS') ? 'bg-emerald-100 text-emerald-800' : 'bg-zinc-900 text-white'
+                      }`}>
+                        {aiInsights.recommendation}
+                      </span>
                     </div>
-                    <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl">
-                      <div className="text-slate-400 font-medium">Fullscreen Exit Count</div>
-                      <div className="text-xl font-bold text-white mt-1">
-                        {detail.assessmentSummary?.fullscreenViolationCount || 0} times
-                      </div>
-                    </div>
+                    <p className="text-zinc-700 leading-relaxed">{aiInsights.summaryText || aiInsights.summary}</p>
                   </div>
 
-                  <div className="space-y-2 pt-2">
-                    <h5 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Recorded Proctoring Alerts</h5>
-                    {detail.assessmentSummary?.proctoringLogs?.length > 0 ? (
-                      <div className="space-y-2">
-                        {detail.assessmentSummary.proctoringLogs.map((log: any) => (
-                          <div key={log.id} className="p-3 bg-slate-900 border border-slate-800 rounded-xl flex items-start gap-2.5 text-xs">
-                            <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-                            <div className="flex-1">
-                              <div className="flex items-center justify-between font-bold text-slate-200">
-                                <span>{log.eventType.replace('_', ' ')}</span>
-                                <span className="font-mono text-[10px] text-slate-500">{new Date(log.timestamp).toLocaleTimeString()}</span>
-                              </div>
-                              <p className="text-slate-400 mt-0.5">{log.details || 'Integrity flag recorded by browser listener.'}</p>
-                            </div>
+                  {((aiInsights.strengths && aiInsights.strengths.length > 0) || (aiInsights.skillStrengths && aiInsights.skillStrengths.length > 0)) && (
+                    <div className="space-y-2">
+                      <h5 className="font-mono text-[10px] text-zinc-500 uppercase font-semibold">Key Strengths</h5>
+                      <div className="space-y-1.5">
+                        {(aiInsights.strengths || aiInsights.skillStrengths || []).map((str: string, i: number) => (
+                          <div key={i} className="p-2.5 bg-emerald-50 text-emerald-900 border border-emerald-200 rounded font-medium">
+                            &bull; {str}
                           </div>
                         ))}
                       </div>
-                    ) : (
-                      <div className="p-4 text-center text-slate-500 text-xs bg-slate-900 rounded-xl border border-slate-800">
-                        No proctoring violations recorded. Clean assessment session.
+                    </div>
+                  )}
+
+                  {aiInsights.weaknesses && aiInsights.weaknesses.length > 0 && (
+                    <div className="space-y-2">
+                      <h5 className="font-mono text-[10px] text-zinc-500 uppercase font-semibold">Areas for Improvement</h5>
+                      <div className="space-y-1.5">
+                        {aiInsights.weaknesses.map((w: string, i: number) => (
+                          <div key={i} className="p-2.5 bg-amber-50 text-amber-900 border border-amber-200 rounded font-medium">
+                            &bull; {w}
+                          </div>
+                        ))}
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* TAB 4: CODE SUBMISSIONS */}
-            {activeTab === 'coding' && (
-              <div className="space-y-6">
-                {detail.assessmentSummary?.codeSubmissions?.length > 0 ? (
-                  <div className="space-y-4">
-                    {detail.assessmentSummary.codeSubmissions.map((cs: any, idx: number) => (
-                      <div key={idx} className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-cyan-400 uppercase bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
-                            {cs.sectionTitle || 'Coding Section'}
-                          </span>
-                          <button
-                            onClick={() => copyCodeToClipboard(cs.codeAnswer, idx)}
-                            className="p-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-lg text-xs flex items-center gap-1 border border-slate-800 transition"
-                          >
-                            {copiedCodeIdx === idx ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                            <span>{copiedCodeIdx === idx ? 'Copied' : 'Copy Code'}</span>
-                          </button>
+              {/* TAB 3: PROCTORING INTEGRITY */}
+              {activeTab === 'proctoring' && (() => {
+                const logs = detail.proctorLogs || detail.assessmentSummary?.proctoringLogs || [];
+                const snapshots: Array<{ url: string; time: string; reason: string }> = [];
+                const violations: any[] = [];
+
+                for (const l of logs) {
+                  if (l.eventType === 'WEBCAM_SNAPSHOT' || (l.details && l.details.includes('snapshotUrl'))) {
+                    try {
+                      const parsed = JSON.parse(l.details);
+                      if (parsed.snapshotUrl) {
+                        snapshots.push({
+                          url: parsed.snapshotUrl,
+                          time: new Date(l.timestamp).toLocaleTimeString(),
+                          reason: parsed.reason || 'Periodic proctoring verification',
+                        });
+                      }
+                    } catch {
+                      if (l.details && l.details.startsWith('/uploads/')) {
+                        snapshots.push({
+                          url: l.details,
+                          time: new Date(l.timestamp).toLocaleTimeString(),
+                          reason: 'Webcam snapshot',
+                        });
+                      }
+                    }
+                  } else {
+                    violations.push(l);
+                  }
+                }
+
+                return (
+                  <div className="space-y-5 font-sans">
+                    {/* Visual Webcam Snapshots Photo Strip */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-xs font-semibold text-zinc-900">
+                          <Camera className="w-4 h-4 text-blue-600" />
+                          <span>Candidate Webcam Verification Timeline ({snapshots.length} frames)</span>
                         </div>
-                        <h4 className="text-xs font-semibold text-slate-200">{cs.questionPrompt}</h4>
-                        <pre className="p-3 bg-slate-900 text-emerald-300 font-mono text-xs rounded-xl overflow-x-auto border border-slate-800">
-                          {cs.codeAnswer}
-                        </pre>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          Automated Periodic Capture
+                        </span>
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="p-12 text-center text-slate-500 text-xs bg-slate-950 rounded-2xl border border-slate-800">
-                    No practical code submissions available for this candidate attempt.
-                  </div>
-                )}
-              </div>
-            )}
 
-            {/* TAB 5: RECRUITER NOTES & FEEDBACK */}
-            {activeTab === 'notes' && (
-              <div className="space-y-6">
-                {/* Add Note Form */}
-                <form onSubmit={handleAddNote} className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3">
-                  <h4 className="font-bold text-white text-xs">Add Recruiter Team Note</h4>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-xs text-slate-400 font-semibold">Candidate Rating:</span>
-                    {[1, 2, 3, 4, 5].map(st => (
-                      <button
-                        type="button"
-                        key={st}
-                        onClick={() => setNewNote({ ...newNote, rating: st })}
-                        className="p-1 text-amber-400"
-                      >
-                        <Star className={`w-4 h-4 ${st <= newNote.rating ? 'fill-amber-400' : 'text-slate-600'}`} />
-                      </button>
-                    ))}
-                  </div>
-                  <textarea
-                    rows={3}
-                    required
-                    placeholder="Enter candidate interview feedback, strengths, or notes..."
-                    value={newNote.comment}
-                    onChange={(e) => setNewNote({ ...newNote, comment: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
-                  />
-                  <div className="flex justify-end">
-                    <button
-                      type="submit"
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs transition"
-                    >
-                      Post Note
-                    </button>
-                  </div>
-                </form>
-
-                {/* Notes List */}
-                <div className="space-y-3">
-                  {notes.map((n: any) => (
-                    <div key={n.id} className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-1.5 text-xs">
-                      <div className="flex justify-between items-center font-bold">
-                        <span className="text-blue-400">{n.authorName}</span>
-                        <div className="flex items-center space-x-1">
-                          {[...Array(n.rating)].map((_, i) => (
-                            <Star key={i} className="w-3 h-3 text-amber-400 fill-amber-400" />
+                      {snapshots.length === 0 ? (
+                        <div className="p-6 bg-zinc-50 border border-dashed border-zinc-200 rounded text-center text-xs text-zinc-500 font-mono">
+                          <Camera className="w-6 h-6 mx-auto mb-2 text-zinc-400 opacity-60" />
+                          No webcam snapshots captured during this session.
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+                          {snapshots.map((snap, idx) => (
+                            <div
+                              key={idx}
+                              onClick={() => setSelectedSnapshot(snap.url)}
+                              className="group relative rounded border border-zinc-200 overflow-hidden bg-zinc-100 cursor-pointer shadow-xs hover:border-blue-400 transition"
+                            >
+                              <img
+                                src={snap.url}
+                                alt={`Snapshot ${idx + 1}`}
+                                className="w-full h-24 object-cover group-hover:scale-105 transition duration-300"
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[11px] font-medium gap-1">
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>Inspect</span>
+                              </div>
+                              <div className="absolute bottom-0 inset-x-0 bg-zinc-950/75 backdrop-blur-xs px-1.5 py-0.5 text-[9px] font-mono text-zinc-200 flex justify-between">
+                                <span>Frame #{idx + 1}</span>
+                                <span>{snap.time}</span>
+                              </div>
+                            </div>
                           ))}
                         </div>
-                      </div>
-                      <p className="text-slate-300">{n.comment}</p>
-                      <div className="text-[10px] text-slate-500 font-mono">{new Date(n.createdAt).toLocaleString()}</div>
+                      )}
                     </div>
-                  ))}
+
+                    {/* Full Size Snapshot Modal */}
+                    {selectedSnapshot && (
+                      <div
+                        className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4"
+                        onClick={() => setSelectedSnapshot(null)}
+                      >
+                        <div className="relative max-w-xl w-full bg-zinc-900 rounded-lg overflow-hidden border border-zinc-700 p-2" onClick={e => e.stopPropagation()}>
+                          <div className="flex justify-between items-center px-2 py-1 text-white text-xs mb-2 font-mono">
+                            <span>Webcam Proctoring Frame Preview</span>
+                            <button
+                              onClick={() => setSelectedSnapshot(null)}
+                              className="p-1 text-zinc-400 hover:text-white rounded"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                          <img
+                            src={selectedSnapshot}
+                            alt="Proctoring Full Frame"
+                            className="w-full rounded border border-zinc-800 object-contain max-h-[70vh]"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Integrity Review Flags Table */}
+                    <div className="space-y-2 pt-2 border-t border-zinc-200">
+                      <div className="flex items-center justify-between text-xs font-semibold text-zinc-900">
+                        <div className="flex items-center gap-1.5">
+                          <ShieldAlert className="w-4 h-4 text-amber-600" />
+                          <span>Proctoring Integrity Review Flags ({violations.length} events)</span>
+                        </div>
+                        <span className="text-[11px] font-mono text-zinc-500">
+                          Verification Score: {detail.assessmentSummary?.integrityScore || 100}%
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-zinc-500 italic">
+                        Notice: Automated proctoring telemetry serves as advisory verification data for recruiter evaluation, not definitive proof of candidate misconduct.
+                      </p>
+
+                      <div className="space-y-1.5 font-mono text-xs">
+                        {violations.length === 0 ? (
+                          <div className="p-4 bg-emerald-50/50 border border-emerald-200 rounded text-center text-emerald-800 text-[11px]">
+                            ✅ No automated integrity review flags recorded during this assessment session.
+                          </div>
+                        ) : (
+                          violations.map((log: any, i: number) => {
+                            const isSevere = log.eventType === 'FULLSCREEN_EXIT' || log.eventType === 'SCREEN_SHARE_STOPPED';
+                            return (
+                              <div
+                                key={log.id || i}
+                                className={`p-2.5 rounded border flex justify-between items-center text-[11px] ${
+                                  isSevere
+                                    ? 'bg-rose-50/60 border-rose-200 text-rose-900'
+                                    : 'bg-amber-50/50 border-amber-200 text-amber-900'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold">[{log.eventType}]</span>
+                                  <span className="text-zinc-700">{log.details || 'Integrity event logged'}</span>
+                                </div>
+                                <span className="text-zinc-500 shrink-0 ml-2">
+                                  {new Date(log.timestamp).toLocaleTimeString()}
+                                </span>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* TAB 4: CODING SUBMISSIONS */}
+              {activeTab === 'coding' && (
+                <div className="space-y-4 font-mono">
+                  {(!detail.assessmentSummary?.codeSubmissions || detail.assessmentSummary.codeSubmissions.length === 0) ? (
+                    <div className="p-4 text-center text-zinc-400">No coding challenge submissions recorded.</div>
+                  ) : (
+                    detail.assessmentSummary.codeSubmissions.map((sub: any, idx: number) => {
+                      const codeText = sub.codeAnswer || sub.code || '';
+                      return (
+                        <div key={idx} className="border border-zinc-200 rounded overflow-hidden">
+                          <div className="bg-zinc-100 p-2.5 flex justify-between items-center text-[11px] font-bold text-zinc-800">
+                            <span>{sub.sectionTitle || 'Practical Scripting'} - Solution #{idx + 1}</span>
+                            <button
+                              onClick={() => copyCodeToClipboard(codeText, idx)}
+                              className="text-blue-600 hover:underline text-[10px]"
+                            >
+                              {copiedCodeIdx === idx ? 'Copied!' : 'Copy Code'}
+                            </button>
+                          </div>
+                          {sub.questionPrompt && (
+                            <div className="p-2.5 bg-zinc-50 border-b border-zinc-200 text-[11px] text-zinc-700 font-sans">
+                              {sub.questionPrompt}
+                            </div>
+                          )}
+                          <pre className="p-3 bg-zinc-900 text-emerald-400 text-xs overflow-x-auto">
+                            {codeText || '// Empty submission'}
+                          </pre>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
-              </div>
-            )}
+              )}
 
-          </div>
-        )}
+              {/* TAB 5: TEAM NOTES */}
+              {activeTab === 'notes' && (
+                <div className="space-y-4">
+                  <form onSubmit={handleAddNote} className="space-y-3 p-4 bg-zinc-50 rounded border border-zinc-200">
+                    <div className="font-semibold text-zinc-900">Add Team Recruiter Note</div>
+                    <textarea
+                      rows={3}
+                      required
+                      placeholder="Add candidate interview feedback or assessment notes..."
+                      value={newNote.comment}
+                      onChange={(e) => setNewNote({ ...newNote, comment: e.target.value })}
+                      className="w-full p-2.5 bg-white border border-zinc-200 rounded text-xs focus:border-zinc-400"
+                    />
+                    <div className="flex justify-between items-center">
+                      <input
+                        type="text"
+                        placeholder="Your name (e.g. Lead HR)"
+                        value={newNote.authorName}
+                        onChange={(e) => setNewNote({ ...newNote, authorName: e.target.value })}
+                        className="bg-white border border-zinc-200 rounded px-2.5 py-1 text-xs"
+                      />
+                      <button type="submit" className="px-3 py-1.5 bg-zinc-900 text-white rounded font-medium">
+                        Post Note
+                      </button>
+                    </div>
+                  </form>
 
-        {/* Footer Action Bar */}
-        {detail && (
-          <div className="px-6 py-4 border-t border-slate-800 bg-slate-900 flex items-center justify-between gap-3">
-            <button
-              disabled={updatingStatus}
-              onClick={() => handleUpdateStatus('REJECTED')}
-              className="px-4 py-2 bg-red-950/40 hover:bg-red-900/50 text-red-300 text-xs font-semibold rounded-xl border border-red-800/40 transition disabled:opacity-50"
-            >
-              Reject Candidate
-            </button>
+                  <div className="space-y-2">
+                    {notes.map((note) => (
+                      <div key={note.id} className="p-3 border border-zinc-200 rounded space-y-1">
+                        <div className="flex justify-between text-[11px] font-mono text-zinc-500">
+                          <span className="font-semibold text-zinc-900">{note.authorName || 'Recruiter'}</span>
+                          <span>{new Date(note.createdAt).toLocaleDateString()}</span>
+                        </div>
+                        <p className="text-zinc-700">{note.comment}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-            <div className="flex items-center space-x-2">
-              <button
-                disabled={updatingStatus}
-                onClick={() => handleUpdateStatus('SHORTLISTED')}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl border border-slate-700 transition disabled:opacity-50"
-              >
-                Shortlist
-              </button>
-              <button
-                onClick={() => setIsScheduleModalOpen(true)}
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl flex items-center space-x-1 transition shadow-lg shadow-purple-600/20"
-              >
-                <span>Schedule HR Interview</span>
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        )}
+              {/* TAB 6: PRIVACY & DATA RIGHTS */}
+              {activeTab === 'privacy' && (
+                <div className="space-y-6">
+                  {/* Status Overview Card */}
+                  <div className="p-4 bg-zinc-50 rounded-lg border border-zinc-200 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Shield className="w-4 h-4 text-blue-600" />
+                        <span className="font-semibold text-zinc-900 text-xs">DPDP Consent Status</span>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded font-mono text-[10px] font-bold ${
+                        detail.consentRecorded
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                          : 'bg-amber-100 text-amber-800 border border-amber-300'
+                      }`}>
+                        {detail.consentRecorded ? 'CONSENT RECORDED' : 'AWAITING CONSENT'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px] font-mono text-zinc-600 pt-1 border-t border-zinc-200">
+                      <div>
+                        <span className="text-zinc-400 block">Notice Version:</span>
+                        <span className="font-semibold text-zinc-800">{detail.consentVersion || 'N/A (Pre-session)'}</span>
+                      </div>
+                      <div>
+                        <span className="text-zinc-400 block">Consent Timestamp:</span>
+                        <span className="font-semibold text-zinc-800">
+                          {detail.consentRecordedAt ? new Date(detail.consentRecordedAt).toLocaleString() : 'Not yet provided'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Legal Retention Hold Card */}
+                  <div className={`p-4 rounded-lg border space-y-3 ${
+                    detail.legalHold
+                      ? 'bg-rose-50/70 border-rose-200 text-rose-950'
+                      : 'bg-zinc-50 border-zinc-200 text-zinc-900'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Lock className={`w-4 h-4 ${detail.legalHold ? 'text-rose-600' : 'text-zinc-500'}`} />
+                        <span className="font-semibold text-xs">Legal Retention Hold Exception</span>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded font-mono text-[10px] font-bold ${
+                        detail.legalHold
+                          ? 'bg-rose-200 text-rose-800'
+                          : 'bg-zinc-200 text-zinc-700'
+                      }`}>
+                        {detail.legalHold ? 'HOLD ACTIVE' : 'NO HOLD'}
+                      </span>
+                    </div>
+
+                    <p className="text-[11px] text-zinc-600 leading-relaxed">
+                      Under Section 8(7) of the Digital Personal Data Protection Act, 2023, data necessary for legal compliance, regulatory inquiries, or ongoing proceedings must be retained notwithstanding an erasure request. When active, automatic purging and erasure requests are strictly prevented.
+                    </p>
+
+                    {detail.legalHold && detail.legalHoldReason && (
+                      <div className="p-2.5 bg-rose-100/60 rounded border border-rose-200 text-[11px] font-mono text-rose-900">
+                        <strong>Hold Reason:</strong> {detail.legalHoldReason}
+                      </div>
+                    )}
+
+                    <div className="pt-2 border-t border-zinc-200 flex justify-end">
+                      <button
+                        type="button"
+                        disabled={privacyLoading}
+                        onClick={() => {
+                          if (detail.legalHold) {
+                            handleToggleLegalHold();
+                          } else {
+                            setShowHoldModal(true);
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded text-xs font-semibold transition flex items-center gap-1.5 ${
+                          detail.legalHold
+                            ? 'bg-white hover:bg-zinc-100 text-rose-700 border border-rose-300'
+                            : 'bg-zinc-900 hover:bg-zinc-800 text-white'
+                        }`}
+                      >
+                        <Lock className="w-3.5 h-3.5" />
+                        <span>{detail.legalHold ? 'Release Legal Hold' : 'Place Under Legal Hold'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Candidate Data Subject Access Request (DSAR) Card */}
+                  <div className="p-4 bg-zinc-50 rounded-lg border border-zinc-200 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Download className="w-4 h-4 text-blue-600" />
+                      <span className="font-semibold text-zinc-900 text-xs">Data Portability & DSAR Export</span>
+                    </div>
+                    <p className="text-[11px] text-zinc-600 leading-relaxed">
+                      Candidates have the right to access a summary of their personal data processed by this Data Fiduciary under Section 11 of the DPDP Act 2023. Generates a machine-readable JSON archive of candidate profile, submissions, and proctoring telemetry.
+                    </p>
+                    <div className="pt-2 border-t border-zinc-200 flex justify-end">
+                      <button
+                        type="button"
+                        disabled={privacyLoading}
+                        onClick={handleExportDSAR}
+                        className="px-3 py-1.5 bg-white hover:bg-zinc-100 text-zinc-800 border border-zinc-300 rounded text-xs font-semibold transition flex items-center gap-1.5"
+                      >
+                        <Download className="w-3.5 h-3.5 text-zinc-600" />
+                        <span>Export Candidate Data Record (JSON)</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Candidate Erasure / Anonymization Card */}
+                  <div className="p-4 bg-zinc-50 rounded-lg border border-zinc-200 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Trash2 className="w-4 h-4 text-rose-600" />
+                      <span className="font-semibold text-zinc-900 text-xs">Right to Erasure & De-identification</span>
+                    </div>
+                    <p className="text-[11px] text-zinc-600 leading-relaxed">
+                      Permanent deletion of candidate personal identifiable information (name, contact details, uploaded resume files, and webcam snapshots). Under applicable compliance principles, an anonymized skeleton and tamper-resistant audit trail are retained according to the applicable audit/log retention policy.
+                    </p>
+                    <div className="pt-2 border-t border-zinc-200 flex items-center justify-between">
+                      {detail.legalHold ? (
+                        <span className="text-[11px] text-rose-600 font-medium">
+                          Erasure is locked while Legal Retention Hold is active.
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-zinc-400 font-mono">
+                          Action is irreversible once confirmed.
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        disabled={privacyLoading || detail.legalHold}
+                        onClick={() => setShowEraseModal(true)}
+                        className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded text-xs font-semibold transition flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Request Personal Data Erasure</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+        </div>
 
       </div>
 
-      {/* HR Schedule Interview Modal */}
+      {/* Schedule HR Interview Modal */}
       {isScheduleModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl">
-            <h3 className="text-base font-extrabold text-white">Schedule HR Interview</h3>
-            <form onSubmit={handleScheduleInterviewSubmit} className="space-y-4 text-xs">
+        <div className="fixed inset-0 z-50 bg-zinc-900/50 flex items-center justify-center p-4">
+          <div className="bg-white border border-zinc-200 rounded-lg p-6 max-w-md w-full space-y-4 select-none">
+            <h3 className="text-base font-bold text-zinc-900">Schedule HR Interview</h3>
+            <form onSubmit={handleScheduleInterviewSubmit} className="space-y-3 text-xs">
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Interview Date & Time</label>
+                <label className="block text-zinc-700 font-semibold mb-1">Interview Date & Time</label>
                 <input
                   type="datetime-local"
                   required
                   value={scheduleData.interviewScheduledAt}
                   onChange={(e) => setScheduleData({ ...scheduleData, interviewScheduledAt: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                  className="w-full bg-white border border-zinc-200 rounded p-2 text-zinc-900"
                 />
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Video Meeting Room Link</label>
+                <label className="block text-zinc-700 font-semibold mb-1">Meeting Room Link</label>
                 <input
                   type="url"
                   required
                   value={scheduleData.interviewLink}
                   onChange={(e) => setScheduleData({ ...scheduleData, interviewLink: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                  className="w-full bg-white border border-zinc-200 rounded p-2 text-zinc-900 font-mono"
                 />
               </div>
 
@@ -680,15 +1161,15 @@ export const CandidateDetailDrawer: React.FC<CandidateDetailDrawerProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsScheduleModalOpen(false)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl"
+                  className="px-3 py-1.5 bg-zinc-100 text-zinc-700 rounded"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl transition"
+                  className="px-3 py-1.5 bg-blue-600 text-white rounded font-medium"
                 >
-                  Confirm & Dispatch Invite
+                  Confirm & Notify Candidate
                 </button>
               </div>
             </form>
@@ -696,7 +1177,85 @@ export const CandidateDetailDrawer: React.FC<CandidateDetailDrawerProps> = ({
         </div>
       )}
 
+      {/* Legal Hold Reason Modal */}
+      {showHoldModal && (
+        <div className="fixed inset-0 z-50 bg-zinc-900/60 flex items-center justify-center p-4">
+          <div className="bg-white border border-zinc-200 rounded-lg p-6 max-w-md w-full space-y-4 text-xs">
+            <div className="flex items-center space-x-2 text-zinc-900 font-bold text-sm">
+              <Lock className="w-4 h-4 text-rose-600" />
+              <span>Apply Compliance Legal Hold</span>
+            </div>
+            <p className="text-zinc-600 leading-relaxed">
+              Applying a legal hold suspends automated retention purging and blocks candidate erasure requests pursuant to statutory compliance requirements.
+            </p>
+            <div>
+              <label className="block text-zinc-700 font-semibold mb-1">Retention / Investigation Reason:</label>
+              <textarea
+                rows={3}
+                placeholder="e.g., Formal regulatory review, legal inquiry, or audit preservation obligation"
+                value={holdReasonInput}
+                onChange={(e) => setHoldReasonInput(e.target.value)}
+                className="w-full bg-white border border-zinc-300 rounded p-2 text-zinc-900"
+              />
+            </div>
+            <div className="flex justify-end space-x-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowHoldModal(false)}
+                className="px-3 py-1.5 bg-zinc-100 text-zinc-700 rounded"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={privacyLoading}
+                onClick={handleToggleLegalHold}
+                className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded font-medium"
+              >
+                Confirm Legal Hold
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Candidate Erasure Confirmation Modal */}
+      {showEraseModal && (
+        <div className="fixed inset-0 z-50 bg-zinc-900/60 flex items-center justify-center p-4">
+          <div className="bg-white border border-rose-200 rounded-lg p-6 max-w-md w-full space-y-4 text-xs">
+            <div className="flex items-center space-x-2 text-rose-900 font-bold text-sm">
+              <Trash2 className="w-4 h-4 text-rose-600" />
+              <span>Confirm Data Subject Erasure</span>
+            </div>
+            <p className="text-zinc-700 leading-relaxed">
+              Are you sure you want to erase this candidate's personal data?
+            </p>
+            <ul className="text-zinc-600 space-y-1 list-disc list-inside bg-rose-50/60 p-3 rounded border border-rose-200 text-[11px]">
+              <li>Candidate identity fields (name, email, phone) will be anonymized.</li>
+              <li>Resume and webcam proctoring frames will be unlinked and purged from disk.</li>
+              <li>A tamper-resistant audit trail is retained according to the applicable audit/log retention policy.</li>
+            </ul>
+            <div className="flex justify-end space-x-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowEraseModal(false)}
+                className="px-3 py-1.5 bg-zinc-100 text-zinc-700 rounded"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={privacyLoading}
+                onClick={handleEraseCandidateData}
+                className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded font-medium"
+              >
+                Erase Personal Data
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
-

@@ -1,14 +1,19 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
+import { authenticateToken, requireRole, AuthenticatedRequest } from '../middleware/auth.js';
 
 export const jobsRouter = Router();
 
 /**
- * List all job openings with application statistics
+ * List all job openings with application statistics (Authenticated & Scoped)
  */
-jobsRouter.get('/', async (req, res) => {
+jobsRouter.get('/', authenticateToken, requireRole(['RECRUITER', 'HR_ADMIN', 'ADMIN', 'TECH_INTERVIEWER']), async (req: AuthenticatedRequest, res) => {
   try {
+    const isSuperAdmin = req.user?.role === 'ADMIN' && !req.user?.companyId;
+    const where = isSuperAdmin ? {} : { companyId: req.user?.companyId || undefined };
+
     const jobs = await prisma.job.findMany({
+      where,
       include: {
         company: true,
         assessmentTemplate: true,
@@ -65,24 +70,38 @@ jobsRouter.get('/', async (req, res) => {
 });
 
 /**
- * Create a new Job Opening
+ * Create a new Job Opening (RECRUITER / ADMIN / HR_ADMIN)
  */
-jobsRouter.post('/', async (req, res) => {
-  const { title, experienceRange, location, skillsRequired, description, passThreshold, assessmentTemplateId, companyId } = req.body;
+jobsRouter.post('/', authenticateToken, requireRole(['RECRUITER', 'HR_ADMIN', 'ADMIN']), async (req: AuthenticatedRequest, res) => {
+  const { title, experienceRange, location, skillsRequired, description, passThreshold, assessmentTemplateId } = req.body;
+
+  if (!title || typeof title !== 'string' || title.trim().length < 2) {
+    return res.status(400).json({ success: false, error: 'Job title must be at least 2 characters long.' });
+  }
+
+  let validatedThreshold = 70;
+  if (passThreshold !== undefined) {
+    const num = Number(passThreshold);
+    if (isNaN(num) || num < 1 || num > 100) {
+      return res.status(400).json({ success: false, error: 'passThreshold must be an integer between 1 and 100.' });
+    }
+    validatedThreshold = Math.round(num);
+  }
 
   try {
-    // Default to first company if not provided
-    const targetCompanyId = companyId || (await prisma.company.findFirst())?.id;
-    if (!targetCompanyId) throw new Error('No company found');
+    const targetCompanyId = req.user?.companyId || (await prisma.company.findFirst())?.id;
+    if (!targetCompanyId) {
+      return res.status(400).json({ success: false, error: 'No associated company found for user.' });
+    }
 
     const newJob = await prisma.job.create({
       data: {
-        title,
-        experienceRange,
-        location,
-        skillsRequired: JSON.stringify(skillsRequired || []),
-        description,
-        passThreshold: Number(passThreshold) || 70,
+        title: String(title).trim().substring(0, 150),
+        experienceRange: experienceRange ? String(experienceRange).trim().substring(0, 50) : '0-2 years',
+        location: location ? String(location).trim().substring(0, 100) : 'Remote',
+        skillsRequired: JSON.stringify(Array.isArray(skillsRequired) ? skillsRequired : []),
+        description: description ? String(description).trim().substring(0, 10000) : '',
+        passThreshold: validatedThreshold,
         assessmentTemplateId: assessmentTemplateId || null,
         companyId: targetCompanyId,
       }
@@ -90,9 +109,11 @@ jobsRouter.post('/', async (req, res) => {
 
     await prisma.auditLog.create({
       data: {
+        userId: req.user?.id,
+        userName: req.user?.name,
         action: 'JOB_CREATED',
         entity: 'Job',
-        details: `Created new job: ${title} with ${passThreshold}% pass threshold.`,
+        details: `Created new job: ${title} with ${passThreshold || 70}% pass threshold.`,
       }
     });
 

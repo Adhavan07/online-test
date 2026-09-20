@@ -1,18 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Briefcase, Plus } from 'lucide-react';
 
 interface CreateJobModalProps {
   isOpen: boolean;
   onClose: () => void;
-  templates: Array<{ id: string; title: string }>;
-  onJobCreated: () => void;
+  templates?: Array<{ id: string; title: string }>;
+  onJobCreated?: () => void;
+  onSuccess?: () => void;
 }
 
 export const CreateJobModal: React.FC<CreateJobModalProps> = ({
   isOpen,
   onClose,
-  templates,
+  templates: externalTemplates,
   onJobCreated,
+  onSuccess,
 }) => {
   const [title, setTitle] = useState('');
   const [experienceRange, setExperienceRange] = useState('0–2 years');
@@ -21,7 +23,25 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
   const [description, setDescription] = useState('');
   const [passThreshold, setPassThreshold] = useState(70);
   const [templateId, setTemplateId] = useState('');
+  const [templates, setTemplates] = useState<any[]>(externalTemplates || []);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!externalTemplates && isOpen) {
+      fetch('/api/templates')
+        .then(r => r.json())
+        .then(data => {
+          if (data.success) setTemplates(data.templates);
+        })
+        .catch(console.error);
+    }
+  }, [isOpen, externalTemplates]);
+
+  useEffect(() => {
+    if (!templateId && templates.length > 0) {
+      setTemplateId(templates[0].id);
+    }
+  }, [templates, templateId]);
 
   if (!isOpen) return null;
 
@@ -47,7 +67,8 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
 
       const data = await res.json();
       if (data.success) {
-        onJobCreated();
+        if (onJobCreated) onJobCreated();
+        if (onSuccess) onSuccess();
         onClose();
       } else {
         alert('Error creating job: ' + data.error);
@@ -60,121 +81,119 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-900/40 backdrop-blur-xs select-none">
+      <div className="bg-white border border-zinc-200 rounded-md max-w-xl w-full overflow-hidden shadow-lg text-zinc-900">
         
-        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-blue-500/10 text-blue-400 rounded-lg">
-              <Briefcase className="h-5 w-5" />
-            </div>
-            <h3 className="font-bold text-white text-base">Create New Job Opening</h3>
+        <div className="px-6 py-4 border-b border-zinc-200 flex items-center justify-between bg-zinc-50">
+          <div className="flex items-center space-x-2">
+            <Briefcase className="h-4 w-4 text-blue-600" />
+            <h3 className="font-bold text-zinc-900 text-sm">Create New Job Opening</h3>
           </div>
-          <button onClick={onClose} className="p-1 rounded-lg text-slate-400 hover:text-white">
-            <X className="h-5 w-5" />
+          <button onClick={onClose} className="p-1 rounded hover:bg-zinc-200 text-zinc-500">
+            <X className="h-4 w-4" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs">
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Job Title</label>
+            <label className="block font-semibold text-zinc-700 mb-1">Job Title</label>
             <input
               type="text"
               required
               placeholder="e.g. Cloud DevOps Engineer"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500"
+              className="w-full bg-white border border-zinc-200 rounded px-3 py-1.5 text-zinc-900 focus:border-zinc-400"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Experience Required</label>
+              <label className="block font-semibold text-zinc-700 mb-1">Experience Required</label>
               <input
                 type="text"
                 placeholder="e.g. 0–2 years"
                 value={experienceRange}
                 onChange={(e) => setExperienceRange(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500"
+                className="w-full bg-white border border-zinc-200 rounded px-3 py-1.5 text-zinc-900 focus:border-zinc-400"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Location</label>
+              <label className="block font-semibold text-zinc-700 mb-1">Location</label>
               <input
                 type="text"
                 placeholder="e.g. Chennai / Remote"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500"
+                className="w-full bg-white border border-zinc-200 rounded px-3 py-1.5 text-zinc-900 focus:border-zinc-400"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Required Skills (Comma separated)</label>
+            <label className="block font-semibold text-zinc-700 mb-1">Required Skills (Comma separated)</label>
             <input
               type="text"
               placeholder="Git, Linux, Docker, AWS, Kubernetes"
               value={skills}
               onChange={(e) => setSkills(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500"
+              className="w-full bg-white border border-zinc-200 rounded px-3 py-1.5 text-zinc-900 focus:border-zinc-400"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Assessment Template</label>
+              <label className="block font-semibold text-zinc-700 mb-1">Assessment Template</label>
               <select
                 value={templateId}
                 onChange={(e) => setTemplateId(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500"
+                className="w-full bg-white border border-zinc-200 rounded px-3 py-1.5 text-zinc-900 focus:border-zinc-400"
               >
-                <option value="">Select Template...</option>
+                <option value="">Standard Technical Assessment</option>
                 {templates.map(t => (
                   <option key={t.id} value={t.id}>{t.title}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Pass Threshold (%)</label>
+              <label className="block font-semibold text-zinc-700 mb-1">Pass Threshold (%)</label>
               <input
                 type="number"
                 min="50"
                 max="100"
                 value={passThreshold}
                 onChange={(e) => setPassThreshold(Number(e.target.value))}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500"
+                className="w-full bg-white border border-zinc-200 rounded px-3 py-1.5 text-zinc-900 focus:border-zinc-400 font-mono"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Job Description</label>
+            <label className="block font-semibold text-zinc-700 mb-1">Job Description</label>
             <textarea
               rows={3}
-              placeholder="Brief description of expectations..."
+              placeholder="Brief description of role expectations..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 resize-none"
+              className="w-full bg-white border border-zinc-200 rounded px-3 py-1.5 text-zinc-900 focus:border-zinc-400 resize-none"
             />
           </div>
 
-          <div className="pt-2 flex justify-end space-x-3">
+          <div className="pt-2 flex justify-end space-x-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded-xl transition"
+              className="px-3.5 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-medium rounded transition"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-xl flex items-center space-x-2 transition disabled:opacity-50"
+              className="px-4 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white font-semibold rounded flex items-center space-x-1.5 transition disabled:opacity-50"
             >
-              <Plus className="h-4 w-4" />
-              <span>{loading ? 'Creating...' : 'Create Job Opening'}</span>
+              <Plus className="h-3.5 w-3.5" />
+              <span>{loading ? 'Creating...' : 'Create Job Position'}</span>
             </button>
           </div>
         </form>

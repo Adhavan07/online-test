@@ -1,0 +1,280 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  role      String   // ADMIN, RECRUITER, CANDIDATE
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+}
+
+model Company {
+  id        String   @id @default(uuid())
+  name      String
+  logoUrl   String?
+  users     User[]
+  jobs      Job[]
+  createdAt DateTime @default(now())
+}
+
+model Job {
+  id                   String            @id @default(uuid())
+  title                String
+  experienceRange      String            // e.g. "0-2 years"
+  location             String            // e.g. "Chennai / Remote"
+  skillsRequired       String            // JSON string array e.g. ["Git", "Linux", "Docker"]
+  description          String
+  passThreshold        Int               @default(70) // Percentage required to pass
+  assessmentTemplateId String?
+  assessmentTemplate   AssessmentTemplate? @relation(fields: [assessmentTemplateId], references: [id], onDelete: SetNull)
+  companyId            String
+  company              Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  applications         JobApplication[]
+  createdAt            DateTime          @default(now())
+}
+
+model AssessmentTemplate {
+  id              String              @id @default(uuid())
+  title           String
+  roleCategory    String              // DEVOPS, BACKEND, FRONTEND, DATA_ANALYST, CLOUD
+  durationMinutes Int                 @default(30)
+  totalQuestions  Int                 @default(15)
+  passPercentage  Int                 @default(70)
+  shuffleQuestions Boolean            @default(true)
+  shuffleOptions   Boolean            @default(true)
+  sections        AssessmentSection[]
+  jobs            Job[]
+  attempts        AssessmentAttempt[]
+  createdAt       DateTime            @default(now())
+}
+
+model AssessmentSection {
+  id            String              @id @default(uuid())
+  templateId    String
+  template      AssessmentTemplate  @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  title         String              // e.g. "Git", "Linux", "Docker"
+  description   String?
+  questionCount Int                 @default(5)
+  questions     Question[]
+}
+
+model Question {
+  id          String           @id @default(uuid())
+  sectionId   String
+  section     AssessmentSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  prompt      String
+  type        String           // MCQ_SINGLE, MCQ_MULTI, CODING
+  difficulty  String           // EASY, MEDIUM, HARD
+  explanation String?
+  codeTemplate String?
+  testCasesJson String?        // JSON string of test cases [{input: "", expectedOutput: "", description: ""}]
+  options     QuestionOption[]
+}
+
+model QuestionOption {
+  id         String   @id @default(uuid())
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  text       String
+  isCorrect  Boolean  @default(false)
+}
+
+model Candidate {
+  id             String           @id @default(uuid())
+  name           String
+  email          String           @unique
+  phone          String?
+  resumeUrl      String?
+  resumeFileName String?
+  applications   JobApplication[]
+  createdAt      DateTime         @default(now())
+}
+
+model JobApplication {
+  id                   String             @id @default(uuid())
+  candidateId          String
+  candidate            Candidate          @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  jobId                String
+  job                  Job                @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  status               String             @default("APPLIED") // APPLIED, INVITED, STARTED, IN_PROGRESS, SUBMITTED, EVALUATING, PASSED, FAILED, MANUAL_REVIEW, SHORTLISTED, HR_INTERVIEW, REJECTED
+  token                String             @unique
+  tokenExpiresAt       DateTime
+  otpCode              String?
+  isOtpVerified        Boolean            @default(false)
+  interviewScheduledAt DateTime?
+  interviewLink        String?
+  resumeMatchScore     Float?             // 0-100% match against job requirements
+  resumeParsedSkills   String?            // JSON array of detected candidate skills
+  rankingScore         Float?             // Composite score: Tech(60%) + Resume(30%) - Risk Penalty(10%)
+  recommendation       String?            // STRONG_CANDIDATE, POTENTIAL_MATCH, MANUAL_REVIEW, REJECT
+  attempts             AssessmentAttempt[]
+  notes                RecruiterNote[]
+  liveSessions         LiveInterviewSession[]
+  badges               VerifiedBadge[]
+  createdAt            DateTime           @default(now())
+}
+
+model RecruiterNote {
+  id            String         @id @default(uuid())
+  applicationId String
+  application   JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  authorName    String         @default("Hiring Manager")
+  rating        Int            @default(5) // 1-5 stars rating
+  comment       String
+  createdAt     DateTime       @default(now())
+}
+
+model AssessmentAttempt {
+  id                       String            @id @default(uuid())
+  applicationId            String
+  application              JobApplication    @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  templateId               String
+  template                 AssessmentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  startedAt                DateTime          @default(now())
+  submittedAt              DateTime?
+  currentQuestionIndex     Int               @default(0)
+  questionOrderJson        String            // JSON string array of Question IDs
+  activeQuestionStartedAt  DateTime?         // Server timestamp when current question was served (prevents timer manipulation/refresh cheat)
+  isCompleted              Boolean           @default(false)
+  integrityScore           Int               @default(100)
+  proctoringRiskScore      Int               @default(0)       // 0 to 100 risk score
+  proctoringRiskLevel      String            @default("LOW")   // LOW, MEDIUM, HIGH
+  tabSwitchCount           Int               @default(0)
+  fullscreenViolationCount Int               @default(0)
+  screenShareStopCount     Int               @default(0)
+  cameraDisconnectCount    Int               @default(0)
+  answers                  CandidateAnswer[]
+  proctoringLogs           ProctoringLog[]
+  result                   AssessmentResult?
+}
+
+model CandidateAnswer {
+  id                   String            @id @default(uuid())
+  attemptId            String
+  attempt              AssessmentAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionId           String
+  selectedOptionIdsJson String            // JSON string array of selected option IDs
+  codeAnswer           String?           // Submitted code for CODING type questions
+  answeredAt           DateTime          @default(now())
+  timeSpentSeconds     Int               @default(0)
+}
+
+model AssessmentResult {
+  id                  String            @id @default(uuid())
+  attemptId           String            @unique
+  attempt             AssessmentAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  totalScore          Int
+  maxScore            Int
+  percentage          Float
+  integrityScore      Int               @default(100)
+  proctoringRiskScore Int               @default(0)
+  proctoringRiskLevel String            @default("LOW")
+  rankingScore        Float?
+  recommendation      String?
+  codingScore         Int               @default(0)
+  codingMaxScore      Int               @default(0)
+  sectionScoresJson   String            // JSON breakdown: { "Git": { score: 8, max: 10 }, ... }
+  isPassed            Boolean
+  evaluatedAt         DateTime          @default(now())
+}
+
+model ProctoringLog {
+  id        String            @id @default(uuid())
+  attemptId String
+  attempt   AssessmentAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  eventType String            // FOCUS_LOST, FULLSCREEN_EXIT, COPY_PASTE, SUSPICIOUS_BEHAVIOR
+  details   String?
+  timestamp DateTime          @default(now())
+}
+
+model EmailLog {
+  id             String   @id @default(uuid())
+  recipientEmail String
+  subject        String
+  type           String   // INVITATION, OTP_VERIFICATION, PASS_ALERT, REJECTION, REMINDER, INTERVIEW_INVITE
+  content        String
+  status         String   @default("DELIVERED") // DELIVERED, SIMULATED, FAILED
+  transport      String   @default("SIMULATION") // SMTP, GMAIL, ETHEREAL, SIMULATION
+  previewUrl     String?
+  errorMessage   String?
+  sentAt         DateTime @default(now())
+}
+
+model Notification {
+  id            String   @id @default(uuid())
+  type          String   // INVITATION_SENT, TEST_STARTED, TEST_PASSED, TEST_FAILED, MANUAL_REVIEW, INTERVIEW_SCHEDULED, SYSTEM
+  title         String
+  message       String
+  candidateName String?
+  candidateId   String?
+  jobTitle      String?
+  link          String?
+  isRead        Boolean  @default(false)
+  createdAt     DateTime @default(now())
+}
+
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  userName  String?
+  action    String
+  entity    String
+  details   String
+  createdAt DateTime @default(now())
+}
+
+model LiveInterviewSession {
+  id                String         @id @default(uuid())
+  applicationId     String
+  application       JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  roomToken         String         @unique
+  interviewerName   String         @default("Tech Lead / Recruiter")
+  status            String         @default("SCHEDULED") // SCHEDULED, IN_PROGRESS, COMPLETED
+  codeBuffer        String?        // Shared pair-coding buffer
+  sharedNotes       String?        // Live scratchpad & interview notes
+  interviewerRating Int?           // 1-5 score
+  feedbackSummary   String?
+  scheduledAt       DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+}
+
+model VerifiedBadge {
+  id                    String         @id @default(uuid())
+  badgeId               String         @unique
+  applicationId         String
+  application           JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  candidateName         String
+  jobTitle              String
+  skillDomain           String
+  overallScore          Int
+  trustScore            Int
+  verificationSignature String
+  issuedAt              DateTime       @default(now())
+}
+
+model WebhookConfig {
+  id               String    @id @default(uuid())
+  name             String    @default("Enterprise ATS Sync")
+  endpointUrl      String
+  secretKey        String
+  eventsJson       String    // JSON string e.g. ["candidate.completed", "assessment.passed"]
+  isActive         Boolean   @default(true)
+  lastDispatchedAt DateTime?
+  createdAt        DateTime  @default(now())
+}
+

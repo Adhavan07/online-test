@@ -1,12 +1,14 @@
 import { Router } from 'express';
+import crypto from 'crypto';
 import { prisma } from '../lib/prisma.js';
+import { authenticateToken, requireRole, AuthenticatedRequest } from '../middleware/auth.js';
 
 export const interviewsRouter = Router();
 
 /**
- * Create Live Pair-Coding Interview Room
+ * Create Live Pair-Coding Interview Room (RECRUITER / ADMIN / TECH_INTERVIEWER)
  */
-interviewsRouter.post('/create-room', async (req, res) => {
+interviewsRouter.post('/create-room', authenticateToken, requireRole(['RECRUITER', 'ADMIN', 'TECH_INTERVIEWER']), async (req: AuthenticatedRequest, res) => {
   const { applicationId, interviewerName } = req.body;
 
   if (!applicationId) {
@@ -23,16 +25,20 @@ interviewsRouter.post('/create-room', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Application not found' });
     }
 
-    const roomToken = `ROOM-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+    const isSuperAdmin = req.user?.role === 'ADMIN' && !req.user?.companyId;
+    if (!isSuperAdmin && req.user?.companyId && application.job.companyId !== req.user.companyId) {
+      return res.status(403).json({ success: false, error: 'Forbidden: You do not own this application.' });
+    }
 
-    const starterCode = `/**\n * Live Technical Interview Session\n * Candidate: ${application.candidate.name}\n * Role: ${application.job.title}\n */\n\nfunction solution(input) {\n  // Collaborate on live code here\n  console.log("Hello from live sandbox!");
-  return true;\n}\n\n// Run solution\nsolution();\n`;
+    const roomToken = `ROOM-${crypto.randomBytes(8).toString('hex').toUpperCase()}`;
+
+    const starterCode = `/**\n * Live Technical Interview Session\n * Candidate: ${application.candidate.name}\n * Role: ${application.job.title}\n */\n\nfunction solution(input) {\n  // Collaborate on live code here\n  console.log("Hello from live sandbox!");\n  return true;\n}\n\n// Run solution\nsolution();\n`;
 
     const session = await prisma.liveInterviewSession.create({
       data: {
         applicationId,
         roomToken,
-        interviewerName: interviewerName || 'Tech Lead',
+        interviewerName: interviewerName || req.user?.name || 'Tech Lead',
         status: 'IN_PROGRESS',
         codeBuffer: starterCode,
         sharedNotes: `Live Interview Notes for ${application.candidate.name}:\n- Architectural design discussion\n- Live coding exercise`,
@@ -71,14 +77,11 @@ interviewsRouter.get('/:roomToken', async (req, res) => {
       where: { roomToken },
       include: {
         application: {
-          include: {
-            candidate: true,
-            job: true,
-            attempts: {
-              include: { result: true },
-              take: 1,
-              orderBy: { startedAt: 'desc' },
-            }
+          select: {
+            id: true,
+            status: true,
+            candidate: { select: { id: true, name: true, email: true } },
+            job: { select: { id: true, title: true } },
           }
         }
       }
@@ -119,7 +122,7 @@ interviewsRouter.post('/:roomToken/update', async (req, res) => {
       data: {
         ...(codeBuffer !== undefined && { codeBuffer }),
         ...(sharedNotes !== undefined && { sharedNotes }),
-        ...(interviewerRating !== undefined && { interviewerRating }),
+        ...(interviewerRating !== undefined && { interviewerRating: Number(interviewerRating) }),
         ...(feedbackSummary !== undefined && { feedbackSummary }),
         ...(status !== undefined && { status }),
       }

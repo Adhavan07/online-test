@@ -1,165 +1,454 @@
-import React, { useState } from 'react';
-import { Camera, Mic, Monitor, Globe, CheckCircle2, ShieldCheck, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Camera, Mic, Monitor, Globe, ShieldCheck, ArrowRight, AlertTriangle, RefreshCw } from 'lucide-react';
+
+import { LegalModal } from '../legal/LegalModal';
 
 interface SystemCheckProps {
-  onSystemCheckComplete: () => void;
+  onSystemCheckComplete: (consentData: { consentRecorded: boolean; consentVersion: string; declaredAge?: number }) => void;
   jobTitle: string;
+  cameraRequired?: boolean;
+  microphoneRequired?: boolean;
+  screenShareRequired?: boolean;
+  fullscreenRequired?: boolean;
 }
+
+type DeviceStatus = 'INITIAL' | 'CHECKING' | 'READY' | 'DENIED' | 'UNAVAILABLE';
+type ScreenStatus = 'INITIAL' | 'CHECKING' | 'GRANTED' | 'DENIED' | 'UNAVAILABLE';
 
 export const SystemCheck: React.FC<SystemCheckProps> = ({
   onSystemCheckComplete,
   jobTitle,
+  cameraRequired = true,
+  microphoneRequired = true,
+  screenShareRequired = true,
+  fullscreenRequired = true,
 }) => {
-  const [agreed, setAgreed] = useState(false);
-  const [screenSharingGranted, setScreenSharingGranted] = useState(false);
-  const [granting, setGranting] = useState(false);
+  const [agreedConsent, setAgreedConsent] = useState(false);
+  const [agreedAge, setAgreedAge] = useState(false);
+  const [declaredAge, setDeclaredAge] = useState<number>(18);
+  const [legalModalOpen, setLegalModalOpen] = useState(false);
+  const [legalModalTab, setLegalModalTab] = useState<'privacy' | 'terms' | 'proctoring' | 'grievance'>('privacy');
+  const [cameraStatus, setCameraStatus] = useState<DeviceStatus>('INITIAL');
+  const [micStatus, setMicStatus] = useState<DeviceStatus>('INITIAL');
+  const [screenStatus, setScreenStatus] = useState<ScreenStatus>('INITIAL');
+  const [networkStatus, setNetworkStatus] = useState<'CHECKING' | 'STABLE' | 'UNSTABLE'>('CHECKING');
+  const [permissionError, setPermissionError] = useState<string | null>(null);
 
-  const handleGrantPermissions = async () => {
-    setGranting(true);
-    try {
-      // Simulate real browser permissions request or native getDisplayMedia call if supported
-      if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
-        try {
-          const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-          stream.getTracks().forEach(t => t.stop()); // Clean up test stream
-          setScreenSharingGranted(true);
-        } catch {
-          // Fallback simulation for headless or restricted browser subagents
-          setScreenSharingGranted(true);
+  // Check network latency and stability on mount
+  useEffect(() => {
+    const startTime = Date.now();
+    fetch('/api/health')
+      .then(res => {
+        const latency = Date.now() - startTime;
+        if (res.ok && latency < 2000) {
+          setNetworkStatus('STABLE');
+        } else {
+          setNetworkStatus('UNSTABLE');
         }
+      })
+      .catch(() => setNetworkStatus('UNSTABLE')); // Truthful reporting: never falsely report failed check as STABLE
+  }, []);
+
+  // Check camera and microphone hardware
+  const checkMediaPermissions = async () => {
+    setPermissionError(null);
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setCameraStatus('UNAVAILABLE');
+      setMicStatus('UNAVAILABLE');
+      return;
+    }
+
+    setCameraStatus('CHECKING');
+    setMicStatus('CHECKING');
+
+    // Test Video
+    try {
+      const vStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      vStream.getTracks().forEach(t => t.stop());
+      setCameraStatus('READY');
+    } catch (err: any) {
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setCameraStatus('DENIED');
+        setPermissionError('Camera permission was denied. Please allow access in your browser settings.');
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        setCameraStatus('UNAVAILABLE');
       } else {
-        setScreenSharingGranted(true);
+        setCameraStatus('DENIED');
       }
-    } catch {
-      setScreenSharingGranted(true);
-    } finally {
-      setGranting(false);
+    }
+
+    // Test Audio
+    try {
+      const aStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      aStream.getTracks().forEach(t => t.stop());
+      setMicStatus('READY');
+    } catch (err: any) {
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setMicStatus('DENIED');
+        setPermissionError('Microphone permission was denied. Please allow access in your browser settings.');
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        setMicStatus('UNAVAILABLE');
+      } else {
+        setMicStatus('DENIED');
+      }
+    }
+  };
+
+  // Verify Screen Sharing
+  const handleGrantScreenSharing = async () => {
+    setPermissionError(null);
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+      setScreenStatus('UNAVAILABLE');
+      return;
+    }
+
+    setScreenStatus('CHECKING');
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      const tracks = stream.getVideoTracks();
+      if (tracks.length > 0) {
+        tracks.forEach(t => t.stop());
+        setScreenStatus('GRANTED');
+      } else {
+        setScreenStatus('DENIED');
+        setPermissionError('Screen sharing stream was empty or aborted.');
+      }
+    } catch (err: any) {
+      setScreenStatus('DENIED');
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setPermissionError('Screen sharing was cancelled or denied. Screen sharing is mandatory for proctoring.');
+      } else {
+        setPermissionError('Screen sharing error: ' + (err.message || 'Permission denied.'));
+      }
+    }
+  };
+
+  // Run initial hardware check on mount
+  useEffect(() => {
+    checkMediaPermissions();
+  }, []);
+
+  // Strict Policy Check:
+  // If a device is required, UNAVAILABLE or DENIED status blocks commencement.
+  const cameraPassed = cameraRequired ? cameraStatus === 'READY' : (cameraStatus === 'READY' || cameraStatus === 'UNAVAILABLE' || cameraStatus === 'INITIAL');
+  const micPassed = microphoneRequired ? micStatus === 'READY' : (micStatus === 'READY' || micStatus === 'UNAVAILABLE' || micStatus === 'INITIAL');
+  const screenPassed = screenShareRequired ? screenStatus === 'GRANTED' : (screenStatus === 'GRANTED' || screenStatus === 'UNAVAILABLE' || screenStatus === 'INITIAL');
+
+  const hasHardwareIssues = cameraStatus === 'DENIED' || micStatus === 'DENIED' || screenStatus === 'DENIED';
+
+  const canProceed =
+    agreedConsent &&
+    agreedAge &&
+    cameraPassed &&
+    micPassed &&
+    screenPassed &&
+    !hasHardwareIssues &&
+    networkStatus !== 'CHECKING';
+
+  const handleCommence = async () => {
+    setPermissionError(null);
+
+    // Enforce genuine Fullscreen Entry if required
+    if (fullscreenRequired) {
+      try {
+        if (document.documentElement.requestFullscreen) {
+          await document.documentElement.requestFullscreen();
+        }
+        // Verify actual fullscreen element
+        if (!document.fullscreenElement) {
+          setPermissionError('Fullscreen entry could not be verified. Fullscreen mode is mandatory for this assessment.');
+          return;
+        }
+      } catch (err: any) {
+        setPermissionError('Fullscreen entry blocked: ' + (err.message || 'Browser prevented fullscreen entry. Please click to allow fullscreen.'));
+        return;
+      }
+    }
+
+    onSystemCheckComplete({
+      consentRecorded: true,
+      consentVersion: 'DPDP-2025-V1',
+      declaredAge: Number(declaredAge) || 18,
+    });
+  };
+
+  const renderBadge = (status: DeviceStatus | ScreenStatus | 'STABLE' | 'UNSTABLE') => {
+    switch (status) {
+      case 'READY':
+      case 'GRANTED':
+      case 'STABLE':
+        return (
+          <span className="text-[11px] font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+            [{status}]
+          </span>
+        );
+      case 'CHECKING':
+        return (
+          <span className="text-[11px] font-mono font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 animate-pulse">
+            [CHECKING]
+          </span>
+        );
+      case 'DENIED':
+        return (
+          <span className="text-[11px] font-mono font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded border border-red-200">
+            [DENIED]
+          </span>
+        );
+      case 'UNAVAILABLE':
+        return (
+          <span className="text-[11px] font-mono font-bold text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded border border-zinc-200">
+            [UNAVAILABLE]
+          </span>
+        );
+      case 'UNSTABLE':
+        return (
+          <span className="text-[11px] font-mono font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+            [SLOW]
+          </span>
+        );
+      default:
+        return (
+          <span className="text-[11px] font-mono font-bold text-zinc-500 bg-zinc-50 px-2 py-0.5 rounded border border-zinc-200">
+            [PENDING]
+          </span>
+        );
     }
   };
 
   return (
-    <div className="max-w-2xl mx-auto bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl space-y-6">
+    <div className="max-w-2xl mx-auto bg-white border border-zinc-200 rounded p-8 shadow-sm space-y-6 select-none text-zinc-900 my-8">
       
       {/* Header */}
-      <div className="text-center space-y-2">
-        <div className="inline-flex p-3 bg-emerald-500/10 text-emerald-400 rounded-2xl ring-1 ring-emerald-500/20 mb-1">
-          <ShieldCheck className="h-7 w-7" />
+      <div className="text-center space-y-1.5 pb-4 border-b border-zinc-200">
+        <div className="inline-flex p-2 bg-zinc-100 text-zinc-800 rounded mb-1">
+          <ShieldCheck className="h-6 w-6 text-emerald-600" />
         </div>
-        <h2 className="text-2xl font-extrabold text-white">Pre-Assessment System Check</h2>
-        <p className="text-xs text-slate-400">
-          Verify your hardware and browser compatibility before starting your technical screening for <strong className="text-white">{jobTitle}</strong>.
+        <h2 className="text-xl font-bold text-zinc-900 tracking-tight">Pre-Assessment System Verification</h2>
+        <p className="text-xs text-zinc-600">
+          Verify hardware and browser compatibility before commencing screening for <strong className="text-zinc-900">{jobTitle}</strong>.
         </p>
       </div>
+
+      {/* Permission Error Banner */}
+      {permissionError && (
+        <div className="bg-red-50 border border-red-200 rounded p-3 text-xs text-red-800 flex items-start space-x-2">
+          <AlertTriangle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="font-semibold">{permissionError}</p>
+            <p className="text-[11px] text-red-700 mt-0.5">
+              Click the camera/padlock icon in your browser address bar to grant permissions, then click Re-test below.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* System Check Status Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
         
-        <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-slate-900 rounded-xl text-blue-400">
-              <Camera className="h-5 w-5" />
-            </div>
+        {/* Camera Card */}
+        <div className="bg-zinc-50 p-3.5 rounded border border-zinc-200 flex items-center justify-between">
+          <div className="flex items-center space-x-2.5">
+            <Camera className="h-4 w-4 text-zinc-500" />
             <div>
-              <div className="font-bold text-white">Webcam / Camera</div>
-              <div className="text-[11px] text-slate-400">Video readiness</div>
+              <div className="font-semibold text-zinc-900">Webcam / Camera</div>
+              <div className="text-[11px] text-zinc-500 font-mono">
+                {cameraStatus === 'READY' && 'Video feed operational'}
+                {cameraStatus === 'CHECKING' && 'Requesting camera stream...'}
+                {cameraStatus === 'DENIED' && 'Camera access denied'}
+                {cameraStatus === 'UNAVAILABLE' && 'No camera hardware found'}
+                {cameraStatus === 'INITIAL' && 'Awaiting check'}
+              </div>
             </div>
           </div>
-          <div className="flex items-center space-x-1 text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            <span>Ready</span>
+          <div className="flex items-center space-x-2">
+            {renderBadge(cameraStatus)}
+            {cameraStatus === 'DENIED' && (
+              <button
+                onClick={checkMediaPermissions}
+                className="p-1 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200 rounded"
+                title="Retry camera check"
+              >
+                <RefreshCw className="h-3 w-3" />
+              </button>
+            )}
           </div>
         </div>
 
-        <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-slate-900 rounded-xl text-indigo-400">
-              <Mic className="h-5 w-5" />
-            </div>
+        {/* Microphone Card */}
+        <div className="bg-zinc-50 p-3.5 rounded border border-zinc-200 flex items-center justify-between">
+          <div className="flex items-center space-x-2.5">
+            <Mic className="h-4 w-4 text-zinc-500" />
             <div>
-              <div className="font-bold text-white">Microphone</div>
-              <div className="text-[11px] text-slate-400">Audio input check</div>
+              <div className="font-semibold text-zinc-900">Microphone Input</div>
+              <div className="text-[11px] text-zinc-500 font-mono">
+                {micStatus === 'READY' && 'Audio stream operational'}
+                {micStatus === 'CHECKING' && 'Requesting audio input...'}
+                {micStatus === 'DENIED' && 'Microphone access denied'}
+                {micStatus === 'UNAVAILABLE' && 'No microphone found'}
+                {micStatus === 'INITIAL' && 'Awaiting check'}
+              </div>
             </div>
           </div>
-          <div className="flex items-center space-x-1 text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            <span>Ready</span>
+          <div className="flex items-center space-x-2">
+            {renderBadge(micStatus)}
+            {micStatus === 'DENIED' && (
+              <button
+                onClick={checkMediaPermissions}
+                className="p-1 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200 rounded"
+                title="Retry microphone check"
+              >
+                <RefreshCw className="h-3 w-3" />
+              </button>
+            )}
           </div>
         </div>
 
-        <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex items-center justify-between sm:col-span-2">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-slate-900 rounded-xl text-purple-400">
-              <Monitor className="h-5 w-5" />
-            </div>
+        {/* Screen Sharing Card */}
+        <div className="bg-zinc-50 p-3.5 rounded border border-zinc-200 flex items-center justify-between sm:col-span-2">
+          <div className="flex items-center space-x-2.5">
+            <Monitor className="h-4 w-4 text-zinc-500" />
             <div>
-              <div className="font-bold text-white">Screen Sharing & Fullscreen</div>
-              <div className="text-[11px] text-slate-400">Entire screen sharing permission</div>
+              <div className="font-semibold text-zinc-900">Screen Sharing & Fullscreen</div>
+              <div className="text-[11px] text-zinc-500">
+                Mandatory for proctored evaluation environment
+              </div>
             </div>
           </div>
-          {screenSharingGranted ? (
-            <div className="flex items-center space-x-1 text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              <span>Granted</span>
-            </div>
-          ) : (
-            <button
-              onClick={handleGrantPermissions}
-              disabled={granting}
-              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs rounded-lg transition"
-            >
-              {granting ? 'Testing...' : 'Grant & Verify'}
-            </button>
-          )}
+          <div className="flex items-center space-x-2">
+            {renderBadge(screenStatus)}
+            {screenStatus !== 'GRANTED' && screenStatus !== 'UNAVAILABLE' && (
+              <button
+                onClick={handleGrantScreenSharing}
+                disabled={screenStatus === 'CHECKING'}
+                className="px-3 py-1 bg-zinc-900 hover:bg-zinc-800 text-white font-semibold text-xs rounded transition disabled:opacity-50"
+              >
+                {screenStatus === 'CHECKING' ? 'Verifying...' : 'Grant Access'}
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex items-center justify-between sm:col-span-2">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-slate-900 rounded-xl text-amber-400">
-              <Globe className="h-5 w-5" />
-            </div>
+        {/* Network Stability Card */}
+        <div className="bg-zinc-50 p-3.5 rounded border border-zinc-200 flex items-center justify-between sm:col-span-2">
+          <div className="flex items-center space-x-2.5">
+            <Globe className="h-4 w-4 text-zinc-500" />
             <div>
-              <div className="font-bold text-white">Browser & Network Connection</div>
-              <div className="text-[11px] text-slate-400">HTML5 WebSockets & low latency stream</div>
+              <div className="font-semibold text-zinc-900">Network & Latency</div>
+              <div className="text-[11px] text-zinc-500 font-mono">Server latency telemetry check</div>
             </div>
           </div>
-          <div className="flex items-center space-x-1 text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            <span>Stable</span>
-          </div>
+          {renderBadge(networkStatus)}
         </div>
 
       </div>
 
-      {/* Proctoring Rules Agreement */}
-      <div className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800 space-y-3">
-        <h4 className="font-bold text-white text-xs uppercase tracking-wider">Assessment Rules & Proctoring Consent</h4>
-        <ul className="text-xs text-slate-300 space-y-1.5 list-disc list-inside">
-          <li>Each question has a strict <strong>60-second timer</strong>. Unanswered questions automatically lock upon timer expiry.</li>
-          <li>System compatibility and events will be recorded during the test session.</li>
-          <li>Do not refresh or exit fullscreen during the assessment.</li>
+      {/* Re-check Controls */}
+      <div className="flex justify-end">
+        <button
+          onClick={checkMediaPermissions}
+          className="text-[11px] text-zinc-600 hover:text-zinc-900 flex items-center space-x-1 underline"
+        >
+          <RefreshCw className="h-3 w-3" />
+          <span>Re-test Camera & Microphone Hardware</span>
+        </button>
+      </div>
+
+      {/* Rules, DPDP Notice & Consent Guidelines */}
+      <div className="bg-zinc-50 p-4 rounded border border-zinc-200 space-y-3 text-xs">
+        <div className="flex items-center justify-between">
+          <h4 className="font-mono font-semibold text-zinc-700 uppercase tracking-wider text-[11px]">
+            Proctoring & Data Privacy Protocol
+          </h4>
+          <div className="flex space-x-2 text-[11px]">
+            <button
+              type="button"
+              onClick={() => { setLegalModalTab('privacy'); setLegalModalOpen(true); }}
+              className="text-zinc-600 hover:text-zinc-900 underline font-medium"
+            >
+              DPDP Notice
+            </button>
+            <span className="text-zinc-300">|</span>
+            <button
+              type="button"
+              onClick={() => { setLegalModalTab('proctoring'); setLegalModalOpen(true); }}
+              className="text-zinc-600 hover:text-zinc-900 underline font-medium"
+            >
+              Proctoring Advisory
+            </button>
+            <span className="text-zinc-300">|</span>
+            <button
+              type="button"
+              onClick={() => { setLegalModalTab('grievance'); setLegalModalOpen(true); }}
+              className="text-zinc-600 hover:text-zinc-900 underline font-medium"
+            >
+              Grievance Redressal
+            </button>
+          </div>
+        </div>
+
+        <ul className="text-zinc-600 space-y-1 list-disc list-inside">
+          <li>Each question carries a strict <strong>60-second timer</strong> that auto-advances upon expiry.</li>
+          <li>Tab switching, window unfocusing, and copy-pasting are logged in real-time.</li>
+          <li>Webcam snapshots and screen integrity data are collected strictly for evaluation verification under tenant retention policy.</li>
+          <li>You retain rights to access, summary, and consent withdrawal under applicable data protection frameworks.</li>
         </ul>
 
-        <label className="flex items-center space-x-3 cursor-pointer pt-2 border-t border-slate-800/80">
+        {/* DPDP Consent Checkbox */}
+        <label className="flex items-start space-x-2.5 cursor-pointer pt-2 border-t border-zinc-200">
           <input
             type="checkbox"
-            checked={agreed}
-            onChange={(e) => setAgreed(e.target.checked)}
-            className="h-4 w-4 rounded bg-slate-900 border-slate-700 text-emerald-600 focus:ring-emerald-500"
+            checked={agreedConsent}
+            onChange={(e) => setAgreedConsent(e.target.checked)}
+            className="h-3.5 w-3.5 mt-0.5 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900"
           />
-          <span className="text-xs font-semibold text-white">I agree to the assessment rules and proctoring guidelines.</span>
+          <span className="text-zinc-800 text-xs">
+            <strong>Consent to Processing:</strong> I consent to the collection and processing of my candidate assessment data, proctoring snapshots, and technical telemetry solely for this technical evaluation.
+          </span>
         </label>
+
+        {/* Age Assurance Checkbox & Selector */}
+        <div className="pt-2 border-t border-zinc-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <label className="flex items-start space-x-2.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={agreedAge}
+              onChange={(e) => setAgreedAge(e.target.checked)}
+              className="h-3.5 w-3.5 mt-0.5 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900"
+            />
+            <span className="text-zinc-800 text-xs">
+              <strong>Age Assurance:</strong> I declare that I am at least 18 years of age (or meet the minimum age required for this recruitment / apprenticeship program).
+            </span>
+          </label>
+          <div className="flex items-center space-x-1.5 pl-6 sm:pl-0">
+            <span className="text-[11px] text-zinc-500">Age:</span>
+            <input
+              type="number"
+              min={14}
+              max={100}
+              value={declaredAge}
+              onChange={(e) => setDeclaredAge(parseInt(e.target.value) || 18)}
+              className="w-14 px-1.5 py-0.5 text-xs border border-zinc-300 rounded font-mono text-center focus:ring-zinc-900 focus:border-zinc-900"
+            />
+          </div>
+        </div>
       </div>
 
       {/* Start Button */}
       <button
-        disabled={!agreed}
-        onClick={onSystemCheckComplete}
-        className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 rounded-2xl transition flex items-center justify-center space-x-2 shadow-lg shadow-emerald-600/25 disabled:opacity-40 disabled:cursor-not-allowed"
+        disabled={!canProceed}
+        onClick={handleCommence}
+        className="w-full bg-zinc-900 hover:bg-zinc-800 text-white font-semibold py-3 rounded transition flex items-center justify-center space-x-2 disabled:opacity-40 disabled:cursor-not-allowed text-xs"
       >
-        <span>Start Technical Assessment</span>
-        <ArrowRight className="h-4 w-4" />
+        <span>Commence Technical Assessment</span>
+        <ArrowRight className="h-3.5 w-3.5" />
       </button>
 
+      {/* Legal & Compliance Modal */}
+      <LegalModal
+        isOpen={legalModalOpen}
+        onClose={() => setLegalModalOpen(false)}
+        defaultTab={legalModalTab}
+      />
     </div>
   );
 };

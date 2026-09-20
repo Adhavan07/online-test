@@ -1,12 +1,14 @@
 import { Router } from 'express';
+import crypto from 'crypto';
 import { prisma } from '../lib/prisma.js';
+import { authenticateToken, requireRole, AuthenticatedRequest, getJwtSecret } from '../middleware/auth.js';
 
 export const badgesRouter = Router();
 
 /**
- * Issue a Verified Candidate Skill Badge
+ * Issue a Verified Candidate Skill Badge (RECRUITER / ADMIN ONLY)
  */
-badgesRouter.post('/issue', async (req, res) => {
+badgesRouter.post('/issue', authenticateToken, requireRole(['RECRUITER', 'ADMIN']), async (req: AuthenticatedRequest, res) => {
   const { applicationId } = req.body;
 
   if (!applicationId) {
@@ -32,6 +34,11 @@ badgesRouter.post('/issue', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Application not found' });
     }
 
+    const isSuperAdmin = req.user?.role === 'ADMIN' && !req.user?.companyId;
+    if (!isSuperAdmin && req.user?.companyId && application.job.companyId !== req.user.companyId) {
+      return res.status(403).json({ success: false, error: 'Forbidden: You do not own this application.' });
+    }
+
     const latestAttempt = application.attempts[0];
     if (!latestAttempt || !latestAttempt.result) {
       return res.status(400).json({ success: false, error: 'Candidate has not completed assessment yet.' });
@@ -51,8 +58,10 @@ badgesRouter.post('/issue', async (req, res) => {
       });
     }
 
-    const badgeId = `BADGE-${Math.random().toString(36).substring(2, 8).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
-    const verificationSignature = `SHA256:${Math.random().toString(36).substring(2, 18).toUpperCase()}`;
+    const badgeSuffix = crypto.randomBytes(4).toString('hex').toUpperCase();
+    const badgeId = `BADGE-${badgeSuffix}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const secret = getJwtSecret();
+    const verificationSignature = `SHA256:${crypto.createHmac('sha256', secret).update(`${badgeId}:${application.id}:${latestAttempt.result.percentage}`).digest('hex')}`;
 
     const badge = await prisma.verifiedBadge.create({
       data: {
@@ -80,7 +89,7 @@ badgesRouter.post('/issue', async (req, res) => {
 });
 
 /**
- * Verify Candidate Skill Badge (Public Route)
+ * Verify Candidate Skill Badge (Public Route - Sanitized Verification View)
  */
 badgesRouter.get('/verify/:badgeId', async (req, res) => {
   const { badgeId } = req.params;
@@ -90,10 +99,26 @@ badgesRouter.get('/verify/:badgeId', async (req, res) => {
       where: { badgeId },
       include: {
         application: {
-          include: {
-            job: true,
+          select: {
+            id: true,
+            job: {
+              select: {
+                id: true,
+                title: true,
+                company: { select: { name: true, logoUrl: true } }
+              }
+            },
             attempts: {
-              include: { result: true },
+              select: {
+                integrityScore: true,
+                result: {
+                  select: {
+                    percentage: true,
+                    sectionScoresJson: true,
+                    isPassed: true,
+                  }
+                }
+              },
               take: 1,
               orderBy: { startedAt: 'desc' },
             }
@@ -124,7 +149,17 @@ badgesRouter.get('/verify/:badgeId', async (req, res) => {
     res.json({
       success: true,
       badge: {
-        ...badge,
+        id: badge.id,
+        badgeId: badge.badgeId,
+        candidateName: badge.candidateName,
+        jobTitle: badge.jobTitle,
+        skillDomain: badge.skillDomain,
+        overallScore: badge.overallScore,
+        trustScore: badge.trustScore,
+        verificationSignature: badge.verificationSignature,
+        issuedAt: badge.issuedAt,
+        companyName: badge.application.job.company.name,
+        companyLogo: badge.application.job.company.logoUrl,
         sectionBreakdown,
         issuer: 'TechScreen Pro Anti-Tamper Verification Engine',
       }
