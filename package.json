@@ -7,7 +7,7 @@
     "dev:server": "tsx watch server/src/index.ts",
     "dev:client": "vite client",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
-    "build:server": "node node_modules/typescript/bin/tsc -p server/tsconfig.json",
+    "build:server": "npx --yes -p typescript@5.9.3 tsc -p server/tsconfig.json",
     "build:client": "vite build client",
     "build": "prisma generate --schema=server/src/prisma/schema.prisma && npm run build:server && npm run build:client",
     "db:push": "prisma db push --schema=server/src/prisma/schema.prisma",
