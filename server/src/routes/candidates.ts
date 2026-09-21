@@ -1203,8 +1203,12 @@ candidatesRouter.get('/:applicationId/snapshots/:filename', authenticateToken, r
     }
 
     // Snapshot URLs are stored in the proctoring log details.
+    const attempts = await prisma.assessmentAttempt.findMany({
+      where: { applicationId },
+      select: { id: true },
+    });
     const logs = await prisma.proctoringLog.findMany({
-      where: { attemptId: application.attempts?.[0]?.id || '' },
+      where: { attemptId: { in: attempts.map((a) => a.id) } },
       select: { details: true },
       orderBy: { timestamp: 'desc' },
     });
