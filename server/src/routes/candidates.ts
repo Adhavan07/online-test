@@ -12,24 +12,12 @@ import { authenticateToken, optionalAuth, requireRole, AuthenticatedRequest } fr
 
 export const candidatesRouter = Router();
 
-// Configure Multer for Resume File Uploads
-const uploadDir = path.join(process.cwd(), 'uploads', 'resumes');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadDir),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    const uniqueSuffix = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
-    cb(null, `resume-${uniqueSuffix}${ext}`);
-  }
-});
+// Vercel Functions reject request bodies above 4.5MB. Use memory storage and persist files to Vercel Blob.
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB strict limit
+  limits: { fileSize: 4 * 1024 * 1024 }, // 4MB server-upload limit for Vercel compatibility
   fileFilter: (_req, file, cb) => {
     const allowedExts = ['.pdf', '.docx', '.doc', '.txt'];
     const ext = path.extname(file.originalname).toLowerCase();
@@ -481,33 +469,33 @@ candidatesRouter.post('/apply', handleResumeUpload, async (req, res) => {
     }
 
     let parsedResumeText = '';
-    if (file) {
+    const resumeBuffer = file?.buffer;
+    if (resumeBuffer) {
       try {
-        const buffer = await fs.promises.readFile(file.path);
-        storageService.validateFileContent(buffer, file.originalname);
-        parsedResumeText = await ResumeMatchingService.extractTextFromPdfBuffer(buffer);
+        storageService.validateFileContent(resumeBuffer, file!.originalname);
+        parsedResumeText = await ResumeMatchingService.extractTextFromPdfBuffer(resumeBuffer);
       } catch (validationErr: any) {
-        await fs.promises.unlink(file.path).catch(() => {});
         return res.status(400).json({ success: false, error: validationErr.message });
       }
     }
 
     const job = await prisma.job.findUnique({ where: { id: jobId } });
     if (!job) {
-      if (file) await fs.promises.unlink(file.path).catch(() => {});
       return res.status(404).json({ success: false, error: 'Job not found' });
     }
 
-    // Partition resume into tenant-specific directory
-    let resumeUrl = file ? `/uploads/resumes/${file.filename}` : null;
-    if (file && job.companyId) {
-      const tenantDir = path.join(process.cwd(), 'uploads', 'tenants', job.companyId, 'resumes');
-      if (!fs.existsSync(tenantDir)) {
-        await fs.promises.mkdir(tenantDir, { recursive: true });
-      }
-      const tenantFilePath = path.join(tenantDir, file.filename);
-      await fs.promises.rename(file.path, tenantFilePath);
-      resumeUrl = `/uploads/tenants/${job.companyId}/resumes/${file.filename}`;
+    // Persist resume in durable tenant-partitioned storage.
+    let resumeUrl: string | null = null;
+    let resumeFileName: string | null = null;
+    if (file && resumeBuffer) {
+      const stored = await storageService.saveBuffer(
+        resumeBuffer,
+        file.originalname,
+        'resumes',
+        job.companyId
+      );
+      resumeUrl = stored.publicUrl;
+      resumeFileName = stored.fileName;
     }
 
     let candidate = await prisma.candidate.findUnique({ where: { email: normalizedEmail } });
@@ -519,7 +507,7 @@ candidatesRouter.post('/apply', handleResumeUpload, async (req, res) => {
           email,
           phone: phone || null,
           resumeUrl,
-          resumeFileName: file ? file.originalname : null,
+          resumeFileName: resumeFileName,
         }
       });
     }
@@ -548,7 +536,7 @@ candidatesRouter.post('/apply', handleResumeUpload, async (req, res) => {
         token,
         tokenExpiresAt,
         resumeUrl,
-        resumeFileName: file ? file.originalname : null,
+        resumeFileName: resumeFileName,
         resumeParsedText: parsedResumeText || null,
         resumeMatchScore: initialMatchScore,
         resumeParsedSkills: initialMatchedSkills.length > 0 ? JSON.stringify(initialMatchedSkills) : null,
@@ -1160,24 +1148,12 @@ candidatesRouter.get('/:applicationId/resume', optionalAuth, async (req: Authent
       return res.status(404).json({ success: false, error: 'No resume file associated with this application.' });
     }
 
-    // Anti-Path Traversal & Safe Path Resolution
-    const safeBaseDir = path.resolve(process.cwd(), 'uploads');
-    const fullPath = path.resolve(process.cwd(), resumeRelativePath.replace(/^\//, ''));
-
-    if (!fullPath.startsWith(safeBaseDir)) {
-      return res.status(403).json({ success: false, error: 'Access denied: Directory traversal detected.' });
-    }
-
-    // Tenant boundary verification on path
-    if (fullPath.includes('/tenants/')) {
-      const expectedTenantDir = path.resolve(safeBaseDir, 'tenants', application.job.companyId);
-      if (!fullPath.startsWith(expectedTenantDir)) {
-        return res.status(403).json({ success: false, error: 'Access denied: Cross-tenant resume file access prohibited.' });
-      }
-    }
-
-    if (!fs.existsSync(fullPath)) {
-      return res.status(404).json({ success: false, error: 'Resume file not found on disk.' });
+    // StorageService abstracts local disk and private Vercel Blob storage.
+    let fileBuffer: Buffer;
+    try {
+      fileBuffer = await storageService.getFileBuffer(resumeRelativePath);
+    } catch {
+      return res.status(404).json({ success: false, error: 'Resume file not found.' });
     }
 
     const fileName = application.resumeFileName || application.candidate.resumeFileName || 'resume.pdf';
@@ -1193,7 +1169,7 @@ candidatesRouter.get('/:applicationId/resume', optionalAuth, async (req: Authent
     res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(fileName)}"`);
     res.setHeader('X-Content-Type-Options', 'nosniff');
 
-    fs.createReadStream(fullPath).pipe(res);
+    res.end(fileBuffer);
   } catch (err: any) {
     res.status(500).json({ success: false, error: 'An error occurred while streaming the file.' });
   }
@@ -1222,20 +1198,40 @@ candidatesRouter.get('/:applicationId/snapshots/:filename', authenticateToken, r
     }
 
     const cleanFilename = path.basename(filename);
-    const tenantBaseDir = path.resolve(process.cwd(), 'uploads', 'tenants', application.job.companyId, 'proctoring');
-    const legacyBaseDir = path.resolve(process.cwd(), 'uploads', 'proctoring');
-
-    const tenantPath = path.resolve(tenantBaseDir, cleanFilename);
-    const legacyPath = path.resolve(legacyBaseDir, cleanFilename);
-
-    let fullPath: string | null = null;
-    if (fs.existsSync(tenantPath) && tenantPath.startsWith(tenantBaseDir)) {
-      fullPath = tenantPath;
-    } else if (fs.existsSync(legacyPath) && legacyPath.startsWith(legacyBaseDir)) {
-      fullPath = legacyPath;
+    if (cleanFilename !== filename) {
+      return res.status(400).json({ success: false, error: 'Invalid snapshot filename.' });
     }
 
-    if (!fullPath) {
+    // Snapshot URLs are stored in the proctoring log details.
+    const logs = await prisma.proctoringLog.findMany({
+      where: { attemptId: application.attempts?.[0]?.id || '' },
+      select: { details: true },
+      orderBy: { timestamp: 'desc' },
+    });
+    const snapshotLog = logs.find((log) => {
+      try {
+        const details = JSON.parse(log.details || '{}');
+        return typeof details.snapshotUrl === 'string' && path.basename(details.snapshotUrl) === cleanFilename;
+      } catch {
+        return false;
+      }
+    });
+
+    if (!snapshotLog) {
+      return res.status(404).json({ success: false, error: 'Snapshot image not found.' });
+    }
+
+    let snapshotUrl: string;
+    try {
+      snapshotUrl = JSON.parse(snapshotLog.details || '{}').snapshotUrl;
+    } catch {
+      return res.status(404).json({ success: false, error: 'Snapshot image not found.' });
+    }
+
+    let snapshotBuffer: Buffer;
+    try {
+      snapshotBuffer = await storageService.getFileBuffer(snapshotUrl);
+    } catch {
       return res.status(404).json({ success: false, error: 'Snapshot image not found.' });
     }
 
@@ -1249,7 +1245,7 @@ candidatesRouter.get('/:applicationId/snapshots/:filename', authenticateToken, r
 
     res.setHeader('Content-Type', mimeTypes[ext] || 'image/jpeg');
     res.setHeader('Cache-Control', 'private, max-age=3600');
-    fs.createReadStream(fullPath).pipe(res);
+    res.end(snapshotBuffer);
   } catch (err: any) {
     res.status(500).json({ success: false, error: 'Failed to stream snapshot.' });
   }
@@ -1438,7 +1434,9 @@ candidatesRouter.delete('/:applicationId/personal-data', authenticateToken, requ
       include: {
         job: true,
         candidate: true,
-        attempts: true,
+        attempts: {
+          include: { proctoringLogs: true },
+        },
       },
     });
 
@@ -1460,33 +1458,19 @@ candidatesRouter.delete('/:applicationId/personal-data', authenticateToken, requ
       });
     }
 
-    // 1. Delete physical resume file from disk
+    // 1. Delete durable resume storage.
     if (application.resumeUrl) {
-      const resolvedResumePath = storageService.resolveLocalPath(application.resumeUrl);
-      if (fs.existsSync(resolvedResumePath)) {
-        try {
-          fs.unlinkSync(resolvedResumePath);
-        } catch (fileErr) {
-          console.warn('[DPDP ERASURE] Failed to unlink resume file:', fileErr);
-        }
-      }
+      await storageService.deleteFile(application.resumeUrl);
     }
 
-    // 2. Delete all physical webcam proctoring snapshots from disk
-    const tenantProctoringDir = path.resolve(process.cwd(), 'uploads', 'tenants', application.job.companyId, 'proctoring');
-    if (fs.existsSync(tenantProctoringDir)) {
-      try {
-        const files = fs.readdirSync(tenantProctoringDir);
-        for (const f of files) {
-          if (f.includes(application.id) || f.includes(application.candidateId)) {
-            const filePath = path.join(tenantProctoringDir, f);
-            if (fs.existsSync(filePath)) {
-              fs.unlinkSync(filePath);
-            }
-          }
-        }
-      } catch (proctorErr) {
-        console.warn('[DPDP ERASURE] Error cleaning proctoring snapshots:', proctorErr);
+    // 2. Delete durable proctoring snapshots recorded for this application.
+    for (const attempt of application.attempts) {
+      const logs = (attempt as any).proctoringLogs || [];
+      for (const log of logs) {
+        try {
+          const details = JSON.parse(log.details || '{}');
+          if (details.snapshotUrl) await storageService.deleteFile(details.snapshotUrl);
+        } catch {}
       }
     }
 
