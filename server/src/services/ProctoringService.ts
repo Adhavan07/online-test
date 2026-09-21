@@ -319,9 +319,16 @@ export class ProctoringService {
     recentSnapshots.push(now);
     this.snapshotTimestamps.set(attemptId, recentSnapshots);
 
-    // 6. Save image using secure StorageService
+    // 6. Resolve tenant before durable storage so snapshots are physically partitioned per company.
+    const attempt = await prisma.assessmentAttempt.findUnique({
+      where: { id: attemptId },
+      select: { application: { select: { job: { select: { companyId: true } } } } },
+    });
+    const companyId = attempt?.application?.job?.companyId;
+    if (!companyId) throw new Error('Assessment tenant could not be resolved for snapshot storage.');
+
     const filename = `snapshot-${attemptId.substring(0, 8)}-${now}${ext}`;
-    const stored = await storageService.saveBuffer(buffer, filename, 'proctoring');
+    const stored = await storageService.saveBuffer(buffer, filename, 'proctoring', companyId);
 
     // 7. Record ProctoringLog
     const log = await prisma.proctoringLog.create({
