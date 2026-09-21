@@ -7,7 +7,7 @@
     "dev:server": "tsx watch server/src/index.ts",
     "dev:client": "vite client",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
-    "build:server": "npx --yes -p typescript@5.9.3 tsc -p server/tsconfig.json",
+    "build:server": "tsc -p server/tsconfig.json",
     "build:client": "vite build client",
     "build": "prisma generate --schema=server/src/prisma/schema.prisma && npm run build:server && npm run build:client",
     "db:push": "prisma db push --schema=server/src/prisma/schema.prisma",
@@ -38,7 +38,8 @@
     "prisma": "^5.22.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "tsx": "^4.19.2"
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

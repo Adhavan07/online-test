@@ -2,14 +2,15 @@ import { Request, Response, NextFunction } from 'express';
 import { AsyncLocalStorage } from 'async_hooks';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../lib/prisma.js';
+import { getJwtSecret } from './auth.js';
 
 export interface TenantContext {
   id: string;
   name: string;
   slug: string;
   domain: string | null;
-  status: string; // ACTIVE, SUSPENDED, TRIAL
-  plan: string; // FREE, STARTER, PRO, ENTERPRISE
+  status: string;
+  plan: string;
   brandColor: string;
   logoUrl: string | null;
   settings?: any;
@@ -22,9 +23,6 @@ export interface TenantRequest extends Request {
 
 export const tenantStorage = new AsyncLocalStorage<TenantContext | null>();
 
-/**
- * Access the active tenant anywhere in the execution context
- */
 export function getCurrentTenant(): TenantContext | null {
   return tenantStorage.getStore() || null;
 }
@@ -34,7 +32,6 @@ export function getTenantId(): string | null {
   return current ? current.id : null;
 }
 
-// In-memory short-lived tenant cache (30s)
 const tenantCache = new Map<string, { tenant: TenantContext; expiresAt: number }>();
 const CACHE_TTL_MS = 30 * 1000;
 
@@ -66,9 +63,7 @@ async function findTenantByIdOrSlug(identifier: string): Promise<TenantContext |
     }
   });
 
-  if (!company) {
-    return null;
-  }
+  if (!company) return null;
 
   let parsedSettings = null;
   if (company.settingsJson) {
@@ -90,71 +85,93 @@ async function findTenantByIdOrSlug(identifier: string): Promise<TenantContext |
   };
 
   tenantCache.set(cacheKey, { tenant, expiresAt: Date.now() + CACHE_TTL_MS });
-  // Also cache by ID and slug for quick cross-lookup
   tenantCache.set(`tenant:${company.id}`, { tenant, expiresAt: Date.now() + CACHE_TTL_MS });
   tenantCache.set(`tenant:${company.slug}`, { tenant, expiresAt: Date.now() + CACHE_TTL_MS });
 
   return tenant;
 }
 
-/**
- * Extract tenant slug from host header (e.g. 'acme.techscreen.io' or 'acme.localhost:3000')
- */
 function extractSubdomain(host: string | undefined): string | null {
   if (!host) return null;
   const hostname = host.split(':')[0].toLowerCase();
 
-  // If IP address or plain localhost, no subdomain
   if (/^(\d{1,3}\.){3}\d{1,3}$/.test(hostname) || hostname === 'localhost') {
     return null;
   }
 
-  // Vercel deployment hosts are not tenant subdomains.
-  // A preview URL such as <deployment>.vercel.app must not trigger a
-  // database lookup before public routes (including login) are handled.
   if (hostname.endsWith('.vercel.app')) {
     return null;
   }
 
   const parts = hostname.split('.');
-  // 'acme.localhost' -> parts length 2
   if (parts.length === 2 && parts[1] === 'localhost') {
     const sub = parts[0];
-    if (!['www', 'api', 'app', 'admin', 'mail'].includes(sub)) {
-      return sub;
-    }
+    if (!['www', 'api', 'app', 'admin', 'mail'].includes(sub)) return sub;
   }
 
-  // 'acme.techscreen.io' -> parts length 3+
   if (parts.length >= 3) {
     const sub = parts[0];
-    if (!['www', 'api', 'app', 'admin', 'mail'].includes(sub)) {
-      return sub;
-    }
+    if (!['www', 'api', 'app', 'admin', 'mail'].includes(sub)) return sub;
   }
 
   return null;
 }
 
+function getBearerToken(req: Request): string | null {
+  const authHeader = req.headers['authorization'];
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authHeader.slice(7).trim() || null;
+  }
+  const headerToken = req.headers['x-auth-token'];
+  return typeof headerToken === 'string' && headerToken.trim() ? headerToken.trim() : null;
+}
+
 /**
- * Global Tenant Resolution Middleware
- * Resolves the active tenant context using a multi-strategy pipeline:
- * 1. Explicit Header: X-Tenant-Slug or X-Tenant-ID
- * 2. Host Subdomain / Custom Domain
- * 3. Authenticated JWT token claims (companyId)
- * 4. Assessment token parameter (for candidate test taking)
+ * Global Tenant Resolution Middleware.
+ *
+ * Security rule: a valid authenticated JWT is authoritative for tenant
+ * selection. Client-controlled tenant headers/hostnames are only fallback
+ * resolution for unauthenticated flows (login/public tenant discovery).
+ * This prevents an authenticated user from selecting another tenant by
+ * supplying X-Tenant-Slug or a different host.
  */
 export async function resolveTenant(req: TenantRequest, res: Response, next: NextFunction) {
   try {
     let resolvedTenant: TenantContext | null = null;
+    const token = getBearerToken(req);
 
-    // 1. Header Resolution
-    const headerSlug = (req.headers['x-tenant-slug'] as string) || (req.headers['x-tenant-id'] as string);
-    if (headerSlug && typeof headerSlug === 'string' && headerSlug.trim().length > 0) {
-      resolvedTenant = await findTenantByIdOrSlug(headerSlug.trim());
+    // 1. Verified JWT resolution must take precedence over client-controlled
+    // tenant headers/hostnames.
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, getJwtSecret()) as {
+          companyId?: string | null;
+          role?: string;
+        };
+
+        if (decoded.companyId) {
+          resolvedTenant = await findTenantByIdOrSlug(decoded.companyId);
+        } else if (decoded.role?.toUpperCase() === 'ADMIN') {
+          req.isSuperAdmin = true;
+        }
+      } catch {
+        // Authentication middleware will return the appropriate 401 later.
+        // Continue to public tenant discovery only when no valid tenant claim
+        // can be established.
+      }
     }
 
-    // 2. Subdomain / Host Resolution
+    // 2. Explicit tenant header. Used for unauthenticated/public flows.
+    if (!resolvedTenant) {
+      const headerSlug = (req.headers['x-tenant-slug'] as string) ||
+        (req.headers['x-tenant-id'] as string);
+
+      if (headerSlug?.trim()) {
+        resolvedTenant = await findTenantByIdOrSlug(headerSlug.trim());
+      }
+    }
+
+    // 3. Host/subdomain resolution for public tenant-aware entry points.
     if (!resolvedTenant) {
       const subdomain = extractSubdomain(req.headers.host);
       if (subdomain) {
@@ -162,30 +179,11 @@ export async function resolveTenant(req: TenantRequest, res: Response, next: Nex
       }
     }
 
-    // 3. JWT Token Resolution
-    if (!resolvedTenant) {
-      const authHeader = req.headers['authorization'];
-      const token = authHeader && authHeader.startsWith('Bearer ')
-        ? authHeader.split(' ')[1]
-        : (req.headers['x-auth-token'] as string);
-
-      if (token) {
-        try {
-          const decoded = jwt.decode(token) as any;
-          if (decoded && decoded.companyId) {
-            resolvedTenant = await findTenantByIdOrSlug(decoded.companyId);
-          }
-          if (decoded && decoded.role === 'ADMIN' && !decoded.companyId) {
-            req.isSuperAdmin = true;
-          }
-        } catch {}
-      }
-    }
-
-    // 4. Candidate Assessment Token Resolution
+    // 4. Candidate assessment token resolution.
     if (!resolvedTenant && req.path.includes('/assessment/')) {
-      const assessmentToken = (req.headers['x-assessment-token'] as string) ||
-        req.query.token as string ||
+      const assessmentToken =
+        (req.headers['x-assessment-token'] as string) ||
+        (req.query.token as string) ||
         req.params?.token;
 
       if (assessmentToken && typeof assessmentToken === 'string') {
@@ -209,7 +207,6 @@ export async function resolveTenant(req: TenantRequest, res: Response, next: Nex
       }
     }
 
-    // Check Tenant Status if resolved
     if (resolvedTenant) {
       if (resolvedTenant.status === 'SUSPENDED') {
         return res.status(403).json({
@@ -220,19 +217,13 @@ export async function resolveTenant(req: TenantRequest, res: Response, next: Nex
       req.tenant = resolvedTenant;
     }
 
-    // Wrap remaining pipeline in AsyncLocalStorage context
-    tenantStorage.run(resolvedTenant, () => {
-      next();
-    });
+    tenantStorage.run(resolvedTenant, () => next());
   } catch (err: any) {
     console.error('[TENANT RESOLVER ERROR]', err);
     next(err);
   }
 }
 
-/**
- * Middleware requiring that a valid tenant was resolved
- */
 export function requireTenant(req: TenantRequest, res: Response, next: NextFunction) {
   if (!req.tenant) {
     return res.status(400).json({
